@@ -1,4 +1,36 @@
+use std::{any, collections::HashMap};
+
+use anyhow::Context;
+
 use crate::records::TransactionId;
+
+/// Represents a state of a transaction dispute
+#[derive(PartialEq, Debug)]
+enum DisputeProgress {
+    /// Transaction is not disputed
+    Idle,
+    /// Transaction dispute in progress
+    InProgress,
+    /// Transaction is either resolved or is chargedback
+    Done,
+}
+
+/// A historical transaction stored in a database
+struct TransactionHist {
+    /// State of the transaction
+    state: DisputeProgress,
+    /// Amount of money involved
+    amount: f32,
+}
+
+impl TransactionHist {
+    fn new(amount: f32) -> Self {
+        Self {
+            state: DisputeProgress::Idle,
+            amount,
+        }
+    }
+}
 
 /// Represents a client account where transactions can be performed
 pub struct ClientAccount {
@@ -10,8 +42,11 @@ pub struct ClientAccount {
     held: f32,
     /// Frozen account
     locked: bool,
-}
 
+    /// Stores all the historical transactions since we should be able to dispute them
+    /// In reality that would be some kind of a database, but a hashmap should work for the moment
+    transaction_history: HashMap<TransactionId, TransactionHist>,
+}
 
 impl ClientAccount {
     /// Constructs a new client account with an id
@@ -21,6 +56,8 @@ impl ClientAccount {
             available: 0.0,
             held: 0.0,
             locked: false,
+
+            transaction_history: HashMap::new(),
         }
     }
 
@@ -49,32 +86,56 @@ impl ClientAccount {
         self.locked
     }
 
+
     /// Deposits `amount` to the account with a specific transaction id
     /// Returns an `Error` in case the transaction already exists
     pub fn deposit(&mut self, transaction_id: TransactionId, amount: f32) -> anyhow::Result<()> {
-        self.available += amount;
-        Ok(())
-    }
-
-    /// Withdraws `amount` from the account with a specific transaction id
-    /// Returns an `Error` if no there are no sufficient funds
-    pub fn withdraw(&mut self, transaction_id: TransactionId, amount: f32) -> anyhow::Result<()> {
-        if self.available > amount {
-            self.available -= amount;
+        if self.transaction_history.get(&transaction_id).is_none() {
+            self.available += amount;
+            self.transaction_history
+                .insert(transaction_id, TransactionHist::new(amount));
             Ok(())
         } else {
-            Err(anyhow::anyhow!(
-                "Insufficient funds. Available {}",
-                self.available
-            ))
+            return Err(anyhow::anyhow!("Transaction already exists",));
         }
     }
 
+    /// Withdraws `amount` from the account with a specific transaction id
+    /// Returns an `Error` if no there are no sufficient funds or the transaction already exists
+    pub fn withdraw(&mut self, transaction_id: TransactionId, amount: f32) -> anyhow::Result<()> {
+        if self.transaction_history.get(&transaction_id).is_none() {
+            if amount < self.available {
+                self.available -= amount;
+                self.transaction_history
+                    .insert(transaction_id, TransactionHist::new(amount));
+                Ok(())
+            } else {
+                return Err(anyhow::anyhow!(
+                    "Insufficient funds. Available {}",
+                    self.available
+                ));
+            }
+        } else {
+            return Err(anyhow::anyhow!("Transaction already exists",));
+        }
+    }
 
     /// Represents a client claim to reverse a transaction
     /// Returns an `Error` in case there is no such transaction with the specified id
     pub fn dispute(&mut self, transaction_id: TransactionId) -> anyhow::Result<()> {
-        todo!("Dispute implementation");
+        let transaction = self
+            .transaction_history
+            .get_mut(&transaction_id)
+            .with_context(|| "Transaction does not exist")?;
+
+        if transaction.state == DisputeProgress::Idle {
+            self.available -= transaction.amount;
+            self.held += transaction.amount;
+            transaction.state = DisputeProgress::InProgress;
+            Ok(())
+        } else {
+            Err(anyhow::anyhow!("Dispute already in progress or done"))
+        }
     }
 }
 
@@ -118,7 +179,7 @@ mod tests {
         assert_eq!(client.is_locked(), false);
     }
 
-        /* User scenario:
+    /* User scenario:
         1) Make two deposits of 20$ and then 35$, total of 55$
         2) Realize that the deposit for 20$ was erroneous, open a dispute
         3) Now we have 35$ available and a held amount of 20$

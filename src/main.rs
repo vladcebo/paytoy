@@ -1,12 +1,11 @@
-use std::{self, env};
 use log::*;
+use std::{self, env};
 
+mod client_account;
 mod records;
 mod transactions_reader;
-mod client_account;
 
 fn main() {
-
     // TODO: disable logging in the test environment
     env_logger::init();
 
@@ -17,5 +16,4 @@ fn main() {
 
     let input_file = &args[1];
     info!("Reading CSV file: {}", input_file);
-
 }

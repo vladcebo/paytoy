@@ -24,18 +24,6 @@ pub enum TransactionType {
     ChargeBack,
 }
 
-pub enum TransactionState {
-    Idle,
-    Disputed,
-    Resolved,
-}
-
-impl Default for TransactionState {
-    fn default() -> Self {
-        Self::Idle
-    }
-}
-
 pub type TransactionId = u32;
 pub type ClientId = u16;
 
@@ -50,9 +38,8 @@ pub struct TransactionRecord {
     /// Transaction id, needed for disputes
     pub tx: TransactionId,
     /// Amount of money. Only available for deposits, withdrawal and chargebacks
+    // TODO: to change to some kind of fixed point decimal instead of floating point
+    // not really good idea adding currency in floating point numbers due to round/truncate etc.
+    // though for 4 digits precision should be fine?
     pub amount: Option<f32>,
-
-    /// State of the transactions
-    #[serde(skip)]
-    state: TransactionState,
 }
