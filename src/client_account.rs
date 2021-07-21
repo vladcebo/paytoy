@@ -86,7 +86,6 @@ impl ClientAccount {
         self.locked
     }
 
-
     /// Deposits `amount` to the account with a specific transaction id
     /// Returns an `Error` in case the transaction already exists
     pub fn deposit(&mut self, transaction_id: TransactionId, amount: f32) -> anyhow::Result<()> {
@@ -123,6 +122,7 @@ impl ClientAccount {
     /// Represents a client claim to reverse a transaction
     /// Makes available funds decrease by the disputed amount and held funds increase
     /// Returns an `Error` in case there is no such transaction with the specified id
+    /// or if the transaction is already disputed
     pub fn dispute(&mut self, transaction_id: TransactionId) -> anyhow::Result<()> {
         let transaction = self
             .transaction_history
@@ -142,8 +142,24 @@ impl ClientAccount {
     /// Represents a resolved dispute
     /// Makes available funds increase by the disputed amount and held funds decrease
     /// Returns an `Error` in case there is no such transaction with the specified id
+    /// or the transaction was not disputed in the first place
     pub fn resolve(&mut self, transaction_id: TransactionId) -> anyhow::Result<()> {
-        todo!("Resolve a dispute")
+        let transaction = self
+            .transaction_history
+            .get_mut(&transaction_id)
+            .with_context(|| "Transaction does not exist")?;
+
+        if transaction.state == DisputeProgress::InProgress {
+            self.available += transaction.amount;
+            self.held -= transaction.amount;
+            transaction.state = DisputeProgress::Done;
+
+            Ok(())
+        } else {
+            Err(anyhow::anyhow!(
+                "Cannot resolve a transaction that is not disputed"
+            ))
+        }
     }
 }
 
