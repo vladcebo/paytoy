@@ -161,6 +161,15 @@ impl ClientAccount {
             ))
         }
     }
+
+    /// Represents a chargeback for a dispute
+    /// Final state of a dispute, funds that were held are being withdrawn
+    /// Client's held funds and total funds shall decrease by the disputed amount
+    /// Returns an `Error` in case there is no such transaction with the specified id
+    /// or the transaction was not disputed in the first place
+    pub fn chargeback(&mut self, transaction_id: TransactionId) -> anyhow::Result<()> {
+        todo!("Implementation");
+    }
 }
 
 #[cfg(test)]
@@ -233,5 +242,31 @@ mod tests {
         assert_eq!(client.total(), 55.00);
         assert_eq!(client.held(), 0.00);
         assert_eq!(client.is_locked(), false);
+    }
+
+    /* User scenario:
+        1) Make a deposit on 10$, available and total of 10$
+        2) Open a dispute on it
+        3) Now we have 0$ available, and 10$ held
+        3) Chargeback occurs, account is frozen, 0$ available and total (reversed transaction)
+    */
+    #[test]
+    fn test_dispute_chargeback() {
+        let mut client = ClientAccount::new(1);
+
+        assert!(client.deposit(1, 10.00).is_ok());
+        assert!(client.dispute(1).is_ok());
+
+        assert_eq!(client.available(), 0.00);
+        assert_eq!(client.total(), 10.00);
+        assert_eq!(client.held(), 10.00);
+        assert_eq!(client.is_locked(), false);
+
+        assert!(client.chargeback(1).is_ok());
+
+        assert_eq!(client.available(), 0.00);
+        assert_eq!(client.total(), 0.00);
+        assert_eq!(client.held(), 0.00);
+        assert_eq!(client.is_locked(), true);
     }
 }
