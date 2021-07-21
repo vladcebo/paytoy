@@ -1,4 +1,5 @@
 use log::*;
+use rust_decimal_macros::dec;
 use std::{self, env};
 
 mod client_account;
