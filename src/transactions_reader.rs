@@ -45,7 +45,7 @@ mod tests {
 
         assert_eq!(transactions[1].tr_type, TransactionType::Withdrawal);
         assert_eq!(transactions[1].client, 6);
-        assert_eq!(transactions[1].id, 5);
+        assert_eq!(transactions[1].tx, 5);
         assert_eq!(transactions[1].amount, Some(9.0));
 
         assert_eq!(transactions[4].tr_type, TransactionType::ChargeBack);

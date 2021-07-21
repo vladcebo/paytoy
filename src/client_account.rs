@@ -1,11 +1,14 @@
-/// TBD: either held or total can be removed
+use crate::records::TransactionId;
+
+/// Represents a client account where transactions can be performed
 pub struct ClientAccount {
+    /// Unique identifier for the client account
     id: u16,
+    /// Total available funds (for trading etc.)
     available: f32,
-    /// TBD: Not needed since can be computed from available
+    /// Total held funds
     held: f32,
-    /// TBD: Not needed, computed from available + held
-    total: f32,
+    /// Frozen account
     locked: bool,
 }
 
@@ -17,7 +20,6 @@ impl ClientAccount {
             id,
             available: 0.0,
             held: 0.0,
-            total: 0.0,
             locked: false,
         }
     }
@@ -39,7 +41,7 @@ impl ClientAccount {
 
     /// Get the total funds
     pub fn total(&self) -> f32 {
-        self.total
+        self.available + self.held
     }
 
     /// Check if the account is frozen
@@ -48,17 +50,17 @@ impl ClientAccount {
     }
 
     /// Deposits `amount` to the account with a specific transaction id
-    pub fn deposit(&mut self, transaction_id: u32, amount: f32) {
+    /// Returns an `Error` in case the transaction already exists
+    pub fn deposit(&mut self, transaction_id: TransactionId, amount: f32) -> anyhow::Result<()> {
         self.available += amount;
-        self.total += amount;
+        Ok(())
     }
 
     /// Withdraws `amount` from the account with a specific transaction id
-    /// Returns an `Err` if no there are no sufficient funds
-    pub fn withdraw(&mut self, transaction_id: u32, amount: f32) -> anyhow::Result<()> {
+    /// Returns an `Error` if no there are no sufficient funds
+    pub fn withdraw(&mut self, transaction_id: TransactionId, amount: f32) -> anyhow::Result<()> {
         if self.available > amount {
             self.available -= amount;
-            self.total -= amount;
             Ok(())
         } else {
             Err(anyhow::anyhow!(
@@ -66,6 +68,13 @@ impl ClientAccount {
                 self.available
             ))
         }
+    }
+
+
+    /// Represents a client claim to reverse a transaction
+    /// Returns an `Error` in case there is no such transaction with the specified id
+    pub fn dispute(&mut self, transaction_id: TransactionId) -> anyhow::Result<()> {
+        todo!("Dispute implementation");
     }
 }
 
@@ -84,8 +93,8 @@ mod tests {
     fn test_deposit_and_withdrawal() {
         let mut client = ClientAccount::new(1);
 
-        client.deposit(1, 20.00);
-        client.deposit(2, 35.00);
+        assert!(client.deposit(1, 20.00).is_ok());
+        assert!(client.deposit(2, 35.00).is_ok());
 
         assert_eq!(client.available(), 55.00);
         assert_eq!(client.total(), 55.00);
@@ -107,6 +116,28 @@ mod tests {
         assert_eq!(client.total(), 31.00);
         assert_eq!(client.held(), 0.00);
         assert_eq!(client.is_locked(), false);
+    }
 
+        /* User scenario:
+        1) Make two deposits of 20$ and then 35$, total of 55$
+        2) Realize that the deposit for 20$ was erroneous, open a dispute
+        3) Now we have 35$ available and a held amount of 20$
+    */
+    #[test]
+    fn test_dispute() {
+        let mut client = ClientAccount::new(1);
+
+        assert!(client.deposit(1, 20.00).is_ok());
+        assert!(client.deposit(2, 35.00).is_ok());
+
+        // Non-existent transaction, nothing to dispute
+        assert!(client.dispute(3).is_err());
+        // Can be disputed
+        assert!(client.dispute(1).is_ok());
+
+        assert_eq!(client.available(), 35.00);
+        assert_eq!(client.total(), 55.00);
+        assert_eq!(client.held(), 20.00);
+        assert_eq!(client.is_locked(), false);
     }
 }

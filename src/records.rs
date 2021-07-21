@@ -36,17 +36,19 @@ impl Default for TransactionState {
     }
 }
 
+pub type TransactionId = u32;
+pub type ClientId = u16;
+
 /// Represents a transaction record in our CSV
 #[derive(Deserialize)]
 pub struct TransactionRecord {
-    /// Transaction type
+    /// Transaction type (can't use the type since it's a built-in keyword)
     #[serde(rename = "type")]
     pub tr_type: TransactionType,
     /// The id to uniquely identify the client
-    pub client: u16,
+    pub client: ClientId,
     /// Transaction id, needed for disputes
-    #[serde(rename = "tx")]
-    pub id: u32,
+    pub tx: TransactionId,
     /// Amount of money. Only available for deposits, withdrawal and chargebacks
     pub amount: Option<f32>,
 
