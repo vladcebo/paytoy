@@ -168,7 +168,22 @@ impl ClientAccount {
     /// Returns an `Error` in case there is no such transaction with the specified id
     /// or the transaction was not disputed in the first place
     pub fn chargeback(&mut self, transaction_id: TransactionId) -> anyhow::Result<()> {
-        todo!("Implementation");
+        let transaction = self
+            .transaction_history
+            .get_mut(&transaction_id)
+            .with_context(|| "Transaction does not exist")?;
+
+        if transaction.state == DisputeProgress::InProgress {
+            self.held -= transaction.amount;
+            self.locked = true;
+            transaction.state = DisputeProgress::Done;
+
+            Ok(())
+        } else {
+            Err(anyhow::anyhow!(
+                "Cannot resolve a transaction that is not disputed"
+            ))
+        }
     }
 }
 
