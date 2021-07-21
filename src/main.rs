@@ -3,6 +3,7 @@ use log::*;
 
 mod records;
 mod transactions_reader;
+mod client_account;
 
 fn main() {
 
