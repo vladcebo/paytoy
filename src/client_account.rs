@@ -49,13 +49,23 @@ impl ClientAccount {
 
     /// Deposits `amount` to the account with a specific transaction id
     pub fn deposit(&mut self, transaction_id: u32, amount: f32) {
-        todo!("handle the transaction and modify the funds");
+        self.available += amount;
+        self.total += amount;
     }
 
     /// Withdraws `amount` from the account with a specific transaction id
     /// Returns an `Err` if no there are no sufficient funds
     pub fn withdraw(&mut self, transaction_id: u32, amount: f32) -> anyhow::Result<()> {
-        todo!("handle the transaction and modify the funds");
+        if self.available > amount {
+            self.available -= amount;
+            self.total -= amount;
+            Ok(())
+        } else {
+            Err(anyhow::anyhow!(
+                "Insufficient funds. Available {}",
+                self.available
+            ))
+        }
     }
 }
 
