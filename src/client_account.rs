@@ -121,6 +121,7 @@ impl ClientAccount {
     }
 
     /// Represents a client claim to reverse a transaction
+    /// Makes available funds decrease by the disputed amount and held funds increase
     /// Returns an `Error` in case there is no such transaction with the specified id
     pub fn dispute(&mut self, transaction_id: TransactionId) -> anyhow::Result<()> {
         let transaction = self
@@ -136,6 +137,13 @@ impl ClientAccount {
         } else {
             Err(anyhow::anyhow!("Dispute already in progress or done"))
         }
+    }
+
+    /// Represents a resolved dispute
+    /// Makes available funds increase by the disputed amount and held funds decrease
+    /// Returns an `Error` in case there is no such transaction with the specified id
+    pub fn resolve(&mut self, transaction_id: TransactionId) -> anyhow::Result<()> {
+        todo!("Resolve a dispute")
     }
 }
 
@@ -183,9 +191,10 @@ mod tests {
         1) Make two deposits of 20$ and then 35$, total of 55$
         2) Realize that the deposit for 20$ was erroneous, open a dispute
         3) Now we have 35$ available and a held amount of 20$
+        4) Transaction is resolved, the held money is going to available and everything good
     */
     #[test]
-    fn test_dispute() {
+    fn test_dispute_resolved() {
         let mut client = ClientAccount::new(1);
 
         assert!(client.deposit(1, 20.00).is_ok());
@@ -199,6 +208,14 @@ mod tests {
         assert_eq!(client.available(), 35.00);
         assert_eq!(client.total(), 55.00);
         assert_eq!(client.held(), 20.00);
+        assert_eq!(client.is_locked(), false);
+
+        // Resolve step
+        assert!(client.resolve(1).is_ok());
+
+        assert_eq!(client.available(), 55.00);
+        assert_eq!(client.total(), 55.00);
+        assert_eq!(client.held(), 0.00);
         assert_eq!(client.is_locked(), false);
     }
 }
