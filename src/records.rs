@@ -1,5 +1,5 @@
-use serde::Deserialize;
 use rust_decimal::Decimal;
+use serde::Deserialize;
 
 /// Defines a transaction type to the client's asset account
 #[derive(Deserialize, PartialEq, Debug)]

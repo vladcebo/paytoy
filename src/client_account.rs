@@ -1,6 +1,7 @@
 use std::{any, collections::HashMap};
 
 use anyhow::Context;
+use rust_decimal::Decimal;
 
 use crate::records::TransactionId;
 
@@ -20,11 +21,11 @@ struct TransactionHist {
     /// State of the transaction
     state: DisputeProgress,
     /// Amount of money involved
-    amount: f32,
+    amount: Decimal,
 }
 
 impl TransactionHist {
-    fn new(amount: f32) -> Self {
+    fn new(amount: Decimal) -> Self {
         Self {
             state: DisputeProgress::Idle,
             amount,
@@ -37,9 +38,9 @@ pub struct ClientAccount {
     /// Unique identifier for the client account
     id: u16,
     /// Total available funds (for trading etc.)
-    available: f32,
+    available: Decimal,
     /// Total held funds
-    held: f32,
+    held: Decimal,
     /// Frozen account
     locked: bool,
 
@@ -53,8 +54,8 @@ impl ClientAccount {
     pub fn new(id: u16) -> Self {
         Self {
             id,
-            available: 0.0,
-            held: 0.0,
+            available: Decimal::ZERO,
+            held: Decimal::ZERO,
             locked: false,
 
             transaction_history: HashMap::new(),
@@ -67,17 +68,17 @@ impl ClientAccount {
     }
 
     /// Get the available funds
-    pub fn available(&self) -> f32 {
+    pub fn available(&self) -> Decimal {
         self.available
     }
 
     /// Get the held funds
-    pub fn held(&self) -> f32 {
+    pub fn held(&self) -> Decimal {
         self.held
     }
 
     /// Get the total funds
-    pub fn total(&self) -> f32 {
+    pub fn total(&self) -> Decimal {
         self.available + self.held
     }
 
@@ -88,7 +89,7 @@ impl ClientAccount {
 
     /// Deposits `amount` to the account with a specific transaction id
     /// Returns an `Error` in case the transaction already exists
-    pub fn deposit(&mut self, transaction_id: TransactionId, amount: f32) -> anyhow::Result<()> {
+    pub fn deposit(&mut self, transaction_id: TransactionId, amount: Decimal) -> anyhow::Result<()> {
         if self.transaction_history.get(&transaction_id).is_none() {
             self.available += amount;
             self.transaction_history
@@ -101,7 +102,7 @@ impl ClientAccount {
 
     /// Withdraws `amount` from the account with a specific transaction id
     /// Returns an `Error` if no there are no sufficient funds or the transaction already exists
-    pub fn withdraw(&mut self, transaction_id: TransactionId, amount: f32) -> anyhow::Result<()> {
+    pub fn withdraw(&mut self, transaction_id: TransactionId, amount: Decimal) -> anyhow::Result<()> {
         if self.transaction_history.get(&transaction_id).is_none() {
             if amount < self.available {
                 self.available -= amount;
@@ -190,6 +191,8 @@ impl ClientAccount {
 #[cfg(test)]
 mod tests {
 
+    use rust_decimal_macros::dec;
+
     use super::ClientAccount;
 
     /*  Basic test case for deposits and withdrawal to the account
@@ -202,28 +205,28 @@ mod tests {
     fn test_deposit_and_withdrawal() {
         let mut client = ClientAccount::new(1);
 
-        assert!(client.deposit(1, 20.00).is_ok());
-        assert!(client.deposit(2, 35.00).is_ok());
+        assert!(client.deposit(1, dec!(20.00)).is_ok());
+        assert!(client.deposit(2, dec!(35.00)).is_ok());
 
-        assert_eq!(client.available(), 55.00);
-        assert_eq!(client.total(), 55.00);
-        assert_eq!(client.held(), 0.00);
+        assert_eq!(client.available(), dec!(55.00));
+        assert_eq!(client.total(), dec!(55.00));
+        assert_eq!(client.held(), dec!(0.00));
         assert_eq!(client.is_locked(), false);
 
-        assert!(client.withdraw(3, 24.00).is_ok());
+        assert!(client.withdraw(3, dec!(24.00)).is_ok());
 
-        assert_eq!(client.available(), 31.00);
-        assert_eq!(client.total(), 31.00);
-        assert_eq!(client.held(), 0.00);
+        assert_eq!(client.available(), dec!(31.00));
+        assert_eq!(client.total(), dec!(31.00));
+        assert_eq!(client.held(), dec!(0.00));
         assert_eq!(client.is_locked(), false);
 
-        assert!(client.withdraw(4, 44.00).is_err());
+        assert!(client.withdraw(4, dec!(44.00)).is_err());
 
         // Transaction fails since we try to withdraw more than we have
         // The same amount remains
-        assert_eq!(client.available(), 31.00);
-        assert_eq!(client.total(), 31.00);
-        assert_eq!(client.held(), 0.00);
+        assert_eq!(client.available(), dec!(31.00));
+        assert_eq!(client.total(), dec!(31.00));
+        assert_eq!(client.held(), dec!(0.00));
         assert_eq!(client.is_locked(), false);
     }
 
@@ -237,25 +240,25 @@ mod tests {
     fn test_dispute_resolved() {
         let mut client = ClientAccount::new(1);
 
-        assert!(client.deposit(1, 20.00).is_ok());
-        assert!(client.deposit(2, 35.00).is_ok());
+        assert!(client.deposit(1, dec!(20.00)).is_ok());
+        assert!(client.deposit(2, dec!(35.00)).is_ok());
 
         // Non-existent transaction, nothing to dispute
         assert!(client.dispute(3).is_err());
         // Can be disputed
         assert!(client.dispute(1).is_ok());
 
-        assert_eq!(client.available(), 35.00);
-        assert_eq!(client.total(), 55.00);
-        assert_eq!(client.held(), 20.00);
+        assert_eq!(client.available(), dec!(35.00));
+        assert_eq!(client.total(), dec!(55.00));
+        assert_eq!(client.held(), dec!(20.00));
         assert_eq!(client.is_locked(), false);
 
         // Resolve step
         assert!(client.resolve(1).is_ok());
 
-        assert_eq!(client.available(), 55.00);
-        assert_eq!(client.total(), 55.00);
-        assert_eq!(client.held(), 0.00);
+        assert_eq!(client.available(), dec!(55.00));
+        assert_eq!(client.total(), dec!(55.00));
+        assert_eq!(client.held(), dec!(0.00));
         assert_eq!(client.is_locked(), false);
     }
 
@@ -269,19 +272,19 @@ mod tests {
     fn test_dispute_chargeback() {
         let mut client = ClientAccount::new(1);
 
-        assert!(client.deposit(1, 10.00).is_ok());
+        assert!(client.deposit(1, dec!(10.00)).is_ok());
         assert!(client.dispute(1).is_ok());
 
-        assert_eq!(client.available(), 0.00);
-        assert_eq!(client.total(), 10.00);
-        assert_eq!(client.held(), 10.00);
+        assert_eq!(client.available(), dec!(0.00));
+        assert_eq!(client.total(), dec!(10.00));
+        assert_eq!(client.held(), dec!(10.00));
         assert_eq!(client.is_locked(), false);
 
         assert!(client.chargeback(1).is_ok());
 
-        assert_eq!(client.available(), 0.00);
-        assert_eq!(client.total(), 0.00);
-        assert_eq!(client.held(), 0.00);
+        assert_eq!(client.available(), dec!(0.00));
+        assert_eq!(client.total(), dec!(0.00));
+        assert_eq!(client.held(), dec!(0.00));
         assert_eq!(client.is_locked(), true);
     }
 }
