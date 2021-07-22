@@ -1,9 +1,15 @@
 /// Reads transactions from a CSV file
 /// Make it a separate file in case we want to add new methods
 /// such as reading from a non-CSV file and so on
-use std::path::Path;
+use std::{
+    io::{BufRead, BufReader, Read},
+    path::Path,
+};
 
-use csv::{ReaderBuilder, Trim};
+use anyhow::Context;
+use crossbeam_channel::Sender;
+use csv::{ByteRecord, ReaderBuilder, Trim};
+use threadpool::ThreadPool;
 
 use crate::records::TransactionRecord;
 
@@ -89,15 +95,82 @@ impl MTReader {
 }
 
 impl TransactionCSVReader for MTReader {
-    fn read_csv<P: AsRef<Path>>(self, path: P) -> anyhow::Result<TransactionsStream> {
-        todo!()
+    fn read_csv<P: AsRef<Path>>(mut self, path: P) -> anyhow::Result<TransactionsStream> {
+        let mut file_reader =
+            BufReader::with_capacity(2 * self.block_size, std::fs::File::open(path)?);
+        let mut headers = vec![];
+
+        // read first row
+        file_reader
+            .read_until(b'\n', &mut headers)
+            .with_context(|| "Failed to read the headers")?;
+
+        let pool = ThreadPool::new(self.num_threads);
+
+        let (parsed_tx, parsed_rx) =
+            crossbeam_channel::unbounded::<(u32, Vec<TransactionRecord>)>();
+
+        // Read blocks of transactions
+        let mut block_id = 0;
+        while let Some(block) = self.read_block(&mut file_reader) {
+            block_id += 1;
+            Self::dispatch_csv_block(&pool, block_id, block, parsed_tx.clone());
+        }
+
+        todo!();
     }
 }
 
-// TODO:
-// A multithreaded parallel reader
-// As we know, sequentially reading a file is fast, but parsing it using serde is extremly slow
-// But maybe we can do it in parallel
+impl MTReader {
+    /// Dispatch a CSV raw block for parsing
+    fn dispatch_csv_block(
+        pool: &ThreadPool,
+        block_id: u32,
+        block: Vec<u8>,
+        parsed_tx: Sender<(u32, Vec<TransactionRecord>)>,
+    ) {
+        // For now consider that the headers if read then they're OK and equal to below
+        let headers = ByteRecord::from(vec!["type", "client", "tx", "amount"]);
+        pool.execute(move || {
+            let mut csv_reader = ReaderBuilder::new()
+                .trim(Trim::All)
+                .has_headers(false)
+                .flexible(true)
+                .from_reader(block.as_slice());
+
+            let mut raw_record = csv::ByteRecord::new();
+
+            let mut transactions = Vec::new();
+            while let Ok(true) = csv_reader.read_byte_record(&mut raw_record) {
+                let record = raw_record.deserialize::<TransactionRecord>(Some(&headers));
+                if let Ok(record) = record {
+                    transactions.push(record);
+                }
+            }
+
+            // Will ignore the channel closed for now
+            let _ = parsed_tx.send((block_id, transactions));
+        });
+    }
+
+    // Reads a big block until new line
+    fn read_block(&mut self, reader: &mut impl BufRead) -> Option<Vec<u8>> {
+        let mut block = vec![0; self.block_size];
+        // put additional for adjustments
+        block.reserve(1000);
+
+        match reader.read(&mut block) {
+            Ok(0) => None,
+            Ok(n) => {
+                block.truncate(n);
+                // do not care if we reach EOF for now
+                let _ = reader.read_until(b'\n', &mut block);
+                Some(block)
+            }
+            Err(_) => None,
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -146,7 +219,9 @@ mod tests {
     #[test]
     fn test_mt_reader_transaction_reader_big() {
         let reader = MTReader::new();
-        let mut transactions = reader.read_csv("tests/data/test_mt_reader.csv").expect("Test file is not found");
+        let mut transactions = reader
+            .read_csv("tests/data/test_mt_reader.csv")
+            .expect("Test file is not found");
         for i in 1..20001 {
             assert_eq!(transactions.next().unwrap().tx, i);
         }
