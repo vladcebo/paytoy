@@ -7,6 +7,8 @@ use csv::{ReaderBuilder, Trim};
 
 use crate::records::TransactionRecord;
 
+use log::*;
+
 /// A type that represents a stream of transactions arriving into the system
 /// Many channels (such as crossbeam) implement iterator interface, so can be used for multithreading
 pub type TransactionsStream = Box<dyn Iterator<Item = TransactionRecord>>;
@@ -30,6 +32,8 @@ impl STBulkReader {
 
 impl TransactionCSVReader for STBulkReader {
     fn read_csv<P: AsRef<Path>>(self, path: P) -> anyhow::Result<TransactionsStream> {
+        let start_time = std::time::Instant::now();
+        debug!("STBulkReader reading the transactions");
         let mut csv_reader = ReaderBuilder::new()
             .trim(Trim::All)
             .flexible(true)
@@ -42,10 +46,18 @@ impl TransactionCSVReader for STBulkReader {
         let mut transactions = Vec::new();
         while csv_reader.read_byte_record(&mut raw_record)? {
             let record = raw_record.deserialize::<TransactionRecord>(Some(&headers));
+            // for simplicity, ignore transactions that cannot be parsed
             if let Ok(record) = record {
                 transactions.push(record);
             }
         }
+
+        debug!(
+            "Read {} records in {:?}. Throughput: {} millions/second",
+            transactions.len(),
+            start_time.elapsed(),
+            transactions.len() as f32 / (1000000.0 * start_time.elapsed().as_secs_f32())
+        );
 
         Ok(Box::new(transactions.into_iter()))
     }

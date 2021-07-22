@@ -1,13 +1,20 @@
+use env_logger::Target;
 use log::*;
 use std::{self, env};
+
+use crate::bench::create_large_test_file;
 
 mod client_account;
 mod records;
 mod transactions_reader;
+mod bench;
+
+static LARGE_TEST_FILE_NAME: &'static str = "tests/data/test_large.csv";
+static NUM_RECORDS: usize = 1000000;
 
 fn main() {
     // TODO: disable logging in the test environment
-    env_logger::init();
+    env_logger::builder().target(Target::Stdout).filter_level(LevelFilter::Debug).init();
 
     let args: Vec<String> = env::args().collect();
 
@@ -17,6 +24,11 @@ fn main() {
 
     let input_file = &args[1];
     info!("Reading CSV file: {}", input_file);
+
+    create_large_test_file(LARGE_TEST_FILE_NAME, NUM_RECORDS,true);
+
+    bench::read_raw_file(LARGE_TEST_FILE_NAME);
+    bench::st_bulk_transaction_reader(LARGE_TEST_FILE_NAME);
 
     /* TODO:
         1) Highly likely the csv/serde parsing is the bottleneck, need to benchmark

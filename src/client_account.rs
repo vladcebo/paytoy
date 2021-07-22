@@ -94,7 +94,7 @@ impl ClientAccount {
         transaction_id: TransactionId,
         amount: Decimal,
     ) -> anyhow::Result<()> {
-        if self.transaction_history.contains_key(&transaction_id)  {
+        if self.transaction_history.contains_key(&transaction_id) {
             return Err(anyhow::anyhow!("Transaction already exists",));
         }
 
