@@ -3,9 +3,7 @@ use log::*;
 use std::{self, env};
 
 use crate::{
-    account_manager::MTAccountManager,
-    bench::create_large_test_file,
-    paytoy::PayToyApp,
+    account_manager::MTAccountManager, bench::create_large_test_file, paytoy::PayToyApp,
     transactions_reader::MTReader,
 };
 

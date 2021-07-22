@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use hashbrown::HashMap;
 
 use anyhow::Context;
@@ -199,6 +201,19 @@ impl ClientAccount {
         transaction.state = DisputeProgress::Done;
 
         Ok(())
+    }
+}
+
+impl Display for ClientAccount {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!(
+            "{:6} {:14.4} {:14.4} {:14.4}     {}",
+            self.id(),
+            self.available(),
+            self.held(),
+            self.total(),
+            self.is_locked()
+        ))
     }
 }
 

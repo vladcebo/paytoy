@@ -20,6 +20,12 @@ pub struct STAccountManager {
     accounts: HashMap<ClientId, ClientAccount>,
 }
 
+fn report_headers() {
+    // since row ordering doens't matter, just loop the hashmap
+    // formatting should be nice if the values are not extremly large
+    println!("client,     available,          held,         total,   locked");
+}
+
 impl AccountManager for STAccountManager {
     fn execute_transactions(&mut self, transactions: TransactionsStream) {
         for record in transactions {
@@ -50,19 +56,9 @@ impl AccountManager for STAccountManager {
 
     /// Reports the status of all accounts to the stdout
     fn report(&self) {
-        // since row ordering doens't matter, just loop the hashmap
-        // formatting should be nice if the values are not extremly large
-        println!("client,     available,          held,         total,   locked");
-        for (client_id, account) in &self.accounts {
-            println!(
-                "{:6} {:14.4} {:14.4} {:14.4}     {}",
-                client_id,
-                account.available(),
-                account.held(),
-                account.total(),
-                account.is_locked()
-            );
-        }
+        report_headers();
+        self.report_accounts();
+
     }
 }
 
@@ -83,12 +79,19 @@ impl STAccountManager {
             .get_mut(&client_id)
             .expect("Invariant: we always have an account since we insert one before that")
     }
+
+    fn report_accounts(&self) {
+        for (_, account) in &self.accounts {
+            println!("{}", account);
+        }
+    }
 }
 
 /// Account manager, but multithreaded
 /// Schedules work to other managers
 pub struct MTAccountManager {
     num_threads: usize,
+    managers: Vec<STAccountManager>,
 }
 
 impl AccountManager for MTAccountManager {
@@ -102,6 +105,9 @@ impl AccountManager for MTAccountManager {
                 // use the single threaded manager here
                 let mut manager = STAccountManager::new();
                 manager.execute_transactions(Box::new(queue_rx.into_iter()));
+
+                // return the accounts managed the single threaded managers
+                manager
             });
 
             handles.push(handle);
@@ -121,18 +127,26 @@ impl AccountManager for MTAccountManager {
         drop(tx_queues);
 
         for handle in handles {
-            let _ = handle.join();
+            if let Ok(manager) = handle.join() {
+                self.managers.push(manager);
+            } else {
+                error!("A manager panicked. Information lost");
+            }
         }
     }
 
     fn report(&self) {
-        println!("Not yet implemented");
+        report_headers();
+        for manager in &self.managers {
+            manager.report_accounts();
+        }
     }
 }
 
 impl MTAccountManager {
     pub fn new(num_threads: usize) -> Self {
-        Self { num_threads }
+        Self { num_threads,
+        managers: Vec::new(), }
     }
 }
 
