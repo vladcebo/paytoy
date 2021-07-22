@@ -2,33 +2,26 @@ use std::collections::HashMap;
 
 use log::*;
 
-use crate::{client_account::ClientAccount, records::{ClientId, TransactionRecord}, transactions_reader::TransactionsStream};
+use crate::{
+    client_account::ClientAccount,
+    records::{ClientId, TransactionRecord},
+    transactions_reader::TransactionsStream,
+};
+
+pub trait AccountManager {
+    fn execute_transactions(&mut self, transactions: TransactionsStream);
+
+    fn report(&self);
+}
 
 /// Manages client accounts by processing transactions
-pub struct AccountManager {
+pub struct STAccountManager {
     /// A "database" of client accounts
     accounts: HashMap<ClientId, ClientAccount>,
 }
 
-impl AccountManager {
-    pub fn new() -> Self {
-        Self {
-            accounts: HashMap::new(),
-        }
-    }
-
-    fn get_or_create_account(&mut self, client_id: ClientId) -> &mut ClientAccount {
-        if !self.accounts.contains_key(&client_id) {
-            self.accounts
-                .insert(client_id, ClientAccount::new(client_id));
-        }
-
-        self.accounts
-            .get_mut(&client_id)
-            .expect("Invariant: we always have an account since we insert one before that")
-    }
-
-    pub fn execute_transactions(&mut self, transactions: TransactionsStream) {
+impl AccountManager for STAccountManager {
+    fn execute_transactions(&mut self, transactions: TransactionsStream) {
         for record in transactions {
             debug!("Processing transaction record: {:?}", record);
             let client = self.get_or_create_account(record.client);
@@ -56,7 +49,7 @@ impl AccountManager {
     }
 
     /// Reports the status of all accounts to the stdout
-    pub fn report(&self) {
+    fn report(&self) {
         // since row ordering doens't matter, just loop the hashmap
         // formatting should be nice if the values are not extremly large
         println!("client,     available,          held,         total,   locked");
@@ -73,21 +66,33 @@ impl AccountManager {
     }
 }
 
+impl STAccountManager {
+    pub fn new() -> Self {
+        Self {
+            accounts: HashMap::new(),
+        }
+    }
+
+    fn get_or_create_account(&mut self, client_id: ClientId) -> &mut ClientAccount {
+        if !self.accounts.contains_key(&client_id) {
+            self.accounts
+                .insert(client_id, ClientAccount::new(client_id));
+        }
+
+        self.accounts
+            .get_mut(&client_id)
+            .expect("Invariant: we always have an account since we insert one before that")
+    }
+}
+
 /// Account manager, but multithreaded
 /// Schedules work to other managers
 pub struct MTAccountManager {
     num_threads: usize,
 }
 
-impl MTAccountManager {
-    pub fn new(num_threads: usize) -> Self {
-        Self {
-            num_threads
-        }
-    }
-
-    pub fn execute_transactions(&mut self, transactions: TransactionsStream) {
-
+impl AccountManager for MTAccountManager {
+    fn execute_transactions(&mut self, transactions: TransactionsStream) {
         let mut handles = Vec::new();
         let mut tx_queues = Vec::new();
         for _ in 0..self.num_threads {
@@ -95,18 +100,20 @@ impl MTAccountManager {
             tx_queues.push(queue_tx);
             let handle = std::thread::spawn(move || {
                 // use the single threaded manager here
-                let mut manager = AccountManager::new();
+                let mut manager = STAccountManager::new();
                 manager.execute_transactions(Box::new(queue_rx.into_iter()));
             });
 
             handles.push(handle);
         }
 
-
         // use a simple round robin strategy, but make sure the same client is always managed by the same thread
         for record in transactions {
             // println!("{}", record.tx);
-            if tx_queues[(record.client % self.num_threads as u16) as usize].send(record).is_err() {
+            if tx_queues[(record.client % self.num_threads as u16) as usize]
+                .send(record)
+                .is_err()
+            {
                 break;
             };
         }
@@ -117,8 +124,17 @@ impl MTAccountManager {
             let _ = handle.join();
         }
     }
+
+    fn report(&self) {
+        println!("Not yet implemented");
+    }
 }
 
+impl MTAccountManager {
+    pub fn new(num_threads: usize) -> Self {
+        Self { num_threads }
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -138,7 +154,7 @@ mod tests {
         let transactions = transactions_reader::STBulkReader::new()
             .read_csv("tests/data/test_basic.csv")
             .unwrap();
-        let mut manager = AccountManager::new();
+        let mut manager = STAccountManager::new();
         manager.execute_transactions(transactions);
 
         let account1 = manager.accounts.get(&1).unwrap();

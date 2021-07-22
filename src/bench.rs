@@ -5,7 +5,11 @@ use std::{
 
 use log::*;
 
-use crate::{paytoy::{App, PayToyMTApp, PayToySTApp}, transactions_reader::{MTReader, STBulkReader, TransactionCSVReader}};
+use crate::{
+    account_manager::{MTAccountManager, STAccountManager},
+    paytoy::PayToyApp,
+    transactions_reader::{MTReader, STBulkReader, TransactionCSVReader},
+};
 
 // Benchmarking functions
 
@@ -38,8 +42,7 @@ pub fn create_large_test_file(path: &str, num_records: usize, use_all_clients: b
 pub fn st_bulk_transaction_reader(path: &str) {
     let reader = STBulkReader::new();
     let transactions = reader.read_csv(path).unwrap();
-    for _ in transactions {
-    }
+    for _ in transactions {}
 }
 
 pub fn mt_transaction_reader(path: &str) {
@@ -58,7 +61,6 @@ pub fn mt_transaction_reader(path: &str) {
     );
 }
 
-
 pub fn read_raw_file(path: &str) {
     let t = std::time::Instant::now();
     let mut file = std::fs::File::open(path).unwrap();
@@ -69,7 +71,7 @@ pub fn read_raw_file(path: &str) {
 
 pub fn st_bulk_application(path: &str, num_transactions: usize) {
     let t = std::time::Instant::now();
-    PayToySTApp::run(path, false).unwrap();
+    PayToyApp::run(path, STBulkReader::new(), STAccountManager::new(), false).unwrap();
     info!(
         "Single threaded application time: {:?} {:.4} millions/second",
         t.elapsed(),
@@ -79,7 +81,13 @@ pub fn st_bulk_application(path: &str, num_transactions: usize) {
 
 pub fn mt_application(path: &str, num_transactions: usize) {
     let t = std::time::Instant::now();
-    PayToyMTApp::run(path, false).unwrap();
+    PayToyApp::run(
+        path,
+        MTReader::new(),
+        MTAccountManager::new(num_cpus::get()),
+        false,
+    )
+    .unwrap();
     info!(
         "Multi-threaded application time: {:?} {:.4} millions/second",
         t.elapsed(),

@@ -1,7 +1,11 @@
 /// Reads transactions from a CSV file
 /// Make it a separate file in case we want to add new methods
 /// such as reading from a non-CSV file and so on
-use std::{collections::HashMap, io::{BufRead, BufReader, Read}, path::Path};
+use std::{
+    collections::HashMap,
+    io::{BufRead, BufReader, Read},
+    path::Path,
+};
 
 use anyhow::Context;
 use crossbeam_channel::{Receiver, Sender};
@@ -107,11 +111,9 @@ impl TransactionCSVReader for MTReader {
         let (parsed_tx, parsed_rx) =
             crossbeam_channel::unbounded::<(u32, Vec<TransactionRecord>)>();
 
-        let (reorder_tx, reorder_rx) =
-            crossbeam_channel::unbounded::<TransactionRecord>();
+        let (reorder_tx, reorder_rx) = crossbeam_channel::unbounded::<TransactionRecord>();
 
         Self::start_reorder(parsed_rx, reorder_tx);
-
 
         // Read blocks of transactions
         let mut block_id = 0;
@@ -160,7 +162,10 @@ impl MTReader {
         });
     }
 
-    fn start_reorder(parsed_rx: Receiver<(u32, Vec<TransactionRecord>)>, reorder_tx: Sender<TransactionRecord>) {
+    fn start_reorder(
+        parsed_rx: Receiver<(u32, Vec<TransactionRecord>)>,
+        reorder_tx: Sender<TransactionRecord>,
+    ) {
         // Ignore the join handle, since the lifetime of the thread is tied to the lifetime of the input and output channels
         let _ = std::thread::spawn(move || {
             let mut waiting_for = 1;
@@ -188,7 +193,6 @@ impl MTReader {
             }
         });
     }
-
 
     // Reads a big block until new line
     fn read_block(&mut self, reader: &mut impl BufRead) -> Option<Vec<u8>> {

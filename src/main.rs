@@ -2,12 +2,7 @@ use env_logger::Target;
 use log::*;
 use std::{self, env};
 
-use crate::{
-    account_manager::AccountManager,
-    bench::create_large_test_file,
-    paytoy::{App, PayToySTApp},
-    transactions_reader::TransactionCSVReader,
-};
+use crate::{account_manager::{MTAccountManager, STAccountManager}, bench::create_large_test_file, paytoy::PayToyApp, transactions_reader::{MTReader, TransactionCSVReader}};
 
 mod account_manager;
 mod bench;
@@ -18,6 +13,19 @@ mod transactions_reader;
 
 static LARGE_TEST_FILE_NAME: &'static str = "tests/data/test_large.csv";
 static NUM_RECORDS: usize = 1000000;
+
+#[allow(dead_code)]
+fn run_benchmarks(use_all_accounts: bool) {
+    create_large_test_file(LARGE_TEST_FILE_NAME, NUM_RECORDS, use_all_accounts);
+
+    bench::read_raw_file(LARGE_TEST_FILE_NAME);
+    bench::st_bulk_transaction_reader(LARGE_TEST_FILE_NAME);
+    bench::mt_transaction_reader(LARGE_TEST_FILE_NAME);
+
+    bench::st_bulk_application(LARGE_TEST_FILE_NAME, NUM_RECORDS);
+    bench::mt_application(LARGE_TEST_FILE_NAME, NUM_RECORDS);
+
+}
 
 fn main() {
     // TODO: disable logging in the test environment
@@ -38,28 +46,17 @@ fn main() {
     let input_file = &args[1];
     info!("Starting application on the file: {}", input_file);
 
-    // if let Err(err) = PayToySTApp::run(input_file) {
-    //     error!("Failed to run the application: {:?}", err);
-    //     std::process::exit(0);
-    // };
+    let reader = MTReader::new().with_threads(num_cpus::get());
+    let manager = MTAccountManager::new(num_cpus::get());
 
-    create_large_test_file(LARGE_TEST_FILE_NAME, NUM_RECORDS, false);
+    if let Err(err) = PayToyApp::run(input_file, reader, manager, true) {
+        error!("Failed to run the application: {:?}", err);
+        std::process::exit(0);
+    };
 
-    bench::read_raw_file(LARGE_TEST_FILE_NAME);
-    bench::st_bulk_transaction_reader(LARGE_TEST_FILE_NAME);
-    bench::mt_transaction_reader(LARGE_TEST_FILE_NAME);
-
-
-    bench::st_bulk_application(LARGE_TEST_FILE_NAME, NUM_RECORDS);
-    bench::mt_application(LARGE_TEST_FILE_NAME, NUM_RECORDS);
-
-    /* TODO:
-
-        3) Can we parse csv in parallel?
-        4) Other edge cases for the account:
-            - can a withdrawal be disputed?
-            - locked account?
-            - not enough held for dispute?
-        5) Document stuff
+    /*
+        TODO:
+        documentation and proper reporting / refactoring
+        + edge cases?
     */
 }
