@@ -63,12 +63,10 @@ impl TransactionCSVReader for STBulkReader {
     }
 }
 
-
 // TODO:
 // A multithreaded parallel reader
 // As we know, sequentially reading a file is fast, but parsing it using serde is extremly slow
 // But maybe we can do it in parallel
-
 
 #[cfg(test)]
 mod tests {

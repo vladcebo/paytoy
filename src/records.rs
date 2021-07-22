@@ -29,7 +29,7 @@ pub type TransactionId = u32;
 pub type ClientId = u16;
 
 /// Represents a transaction record in our CSV
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct TransactionRecord {
     /// Transaction type (can't use the type since it's a built-in keyword)
     #[serde(rename = "type")]

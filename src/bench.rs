@@ -1,10 +1,11 @@
-use std::{io::{BufWriter, Read, Write}, time::Duration};
+use std::{
+    io::{BufWriter, Read, Write},
+    time::Duration,
+};
 
 use log::debug;
 
 use crate::transactions_reader::{STBulkReader, TransactionCSVReader};
-
-
 
 // Benchmarking functions
 
