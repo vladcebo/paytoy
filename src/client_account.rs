@@ -118,7 +118,8 @@ impl ClientAccount {
 
         if amount > self.available {
             return Err(anyhow::anyhow!(
-                "Insufficient funds. Available {}",
+                "Insufficient funds. Requested {} but available {}",
+                amount,
                 self.available
             ));
         }
