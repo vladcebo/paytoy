@@ -63,6 +63,37 @@ impl TransactionCSVReader for STBulkReader {
     }
 }
 
+// A multithreaded reader
+pub struct MTReader {
+    num_threads: usize,
+    block_size: usize,
+}
+
+impl MTReader {
+    pub fn new() -> Self {
+        Self {
+            num_threads: num_cpus::get_physical(),
+            block_size: 32 * 1024,
+        }
+    }
+
+    pub fn with_threads(mut self, num_threads: usize) -> Self {
+        self.num_threads = num_threads;
+        self
+    }
+
+    pub fn block_size(mut self, block_size: usize) -> Self {
+        self.block_size = block_size;
+        self
+    }
+}
+
+impl TransactionCSVReader for MTReader {
+    fn read_csv<P: AsRef<Path>>(self, path: P) -> anyhow::Result<TransactionsStream> {
+        todo!()
+    }
+}
+
 // TODO:
 // A multithreaded parallel reader
 // As we know, sequentially reading a file is fast, but parsing it using serde is extremly slow
@@ -104,5 +135,21 @@ mod tests {
     fn test_st_bulk_transaction_reader_serde() {
         let reader = STBulkReader::new();
         test_transaction_reader(reader, "tests/data/test_serde.csv");
+    }
+
+    #[test]
+    fn test_mt_reader_transaction_reader_serde() {
+        let reader = MTReader::new();
+        test_transaction_reader(reader, "tests/data/test_serde.csv");
+    }
+
+    #[test]
+    fn test_mt_reader_transaction_reader_big() {
+        let reader = MTReader::new();
+        let mut transactions = reader.read_csv("tests/data/test_mt_reader.csv").expect("Test file is not found");
+        for i in 1..20001 {
+            assert_eq!(transactions.next().unwrap().tx, i);
+        }
+        assert!(transactions.next().is_none());
     }
 }
