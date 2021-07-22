@@ -33,7 +33,7 @@ impl STBulkReader {
 impl TransactionCSVReader for STBulkReader {
     fn read_csv<P: AsRef<Path>>(self, path: P) -> anyhow::Result<TransactionsStream> {
         let start_time = std::time::Instant::now();
-        debug!("STBulkReader reading the transactions");
+        info!("STBulkReader reading the transactions");
         let mut csv_reader = ReaderBuilder::new()
             .trim(Trim::All)
             .flexible(true)
@@ -52,7 +52,7 @@ impl TransactionCSVReader for STBulkReader {
             }
         }
 
-        debug!(
+        info!(
             "Read {} records in {:?}. Throughput: {} millions/second",
             transactions.len(),
             start_time.elapsed(),

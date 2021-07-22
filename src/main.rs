@@ -2,14 +2,19 @@ use env_logger::Target;
 use log::*;
 use std::{self, env};
 
-use crate::{account_manager::AccountManager, bench::create_large_test_file, paytoy::{App, PayToySTApp}, transactions_reader::TransactionCSVReader};
+use crate::{
+    account_manager::AccountManager,
+    bench::create_large_test_file,
+    paytoy::{App, PayToySTApp},
+    transactions_reader::TransactionCSVReader,
+};
 
 mod account_manager;
 mod bench;
 mod client_account;
+mod paytoy;
 mod records;
 mod transactions_reader;
-mod paytoy;
 
 static LARGE_TEST_FILE_NAME: &'static str = "tests/data/test_large.csv";
 static NUM_RECORDS: usize = 1000000;
@@ -18,7 +23,7 @@ fn main() {
     // TODO: disable logging in the test environment
     env_logger::builder()
         .target(Target::Stdout)
-        .filter_level(LevelFilter::Debug)
+        .filter_level(LevelFilter::Info)
         .init();
 
     let args: Vec<String> = env::args().collect();
@@ -33,15 +38,17 @@ fn main() {
     let input_file = &args[1];
     info!("Starting application on the file: {}", input_file);
 
-    if let Err(err) = PayToySTApp::run(input_file) {
-        error!("Failed to run the application: {:?}", err);
-        std::process::exit(0);
-    };
+    // if let Err(err) = PayToySTApp::run(input_file) {
+    //     error!("Failed to run the application: {:?}", err);
+    //     std::process::exit(0);
+    // };
 
-    // create_large_test_file(LARGE_TEST_FILE_NAME, NUM_RECORDS, true);
+    create_large_test_file(LARGE_TEST_FILE_NAME, NUM_RECORDS, false);
 
-    // bench::read_raw_file(LARGE_TEST_FILE_NAME);
-    // bench::st_bulk_transaction_reader(LARGE_TEST_FILE_NAME);
+    bench::read_raw_file(LARGE_TEST_FILE_NAME);
+    bench::st_bulk_transaction_reader(LARGE_TEST_FILE_NAME);
+
+    bench::st_bulk_application(LARGE_TEST_FILE_NAME, NUM_RECORDS);
 
     /* TODO:
 
