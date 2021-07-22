@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, os::windows::process};
 
 use log::*;
 
@@ -37,43 +37,23 @@ impl AccountManager {
 
             // TODO: remove boilerplate error handling duplicates
             // Just match the proper transaction and log if there's an error
-            match record.tr_type {
+            let processing_result = match record.tr_type {
                 crate::records::TransactionType::Deposit => match record.amount {
-                    Some(amount) => {
-                        if let Err(err) = client.deposit(record.tx, amount) {
-                            error!("Transaction failed due to: {} | {:?}", err, record);
-                        }
-                    }
-                    None => {
-                        error!("Transaction failed due to missing amount | {:?}", record);
-                    }
+                    Some(amount) => client.deposit(record.tx, amount),
+                    None => Err(anyhow::anyhow!("Transaction failed due to missing amount")),
                 },
                 crate::records::TransactionType::Withdrawal => match record.amount {
-                    Some(amount) => {
-                        if let Err(err) = client.withdraw(record.tx, amount) {
-                            error!("Transaction failed due to: {} | {:?}", err, record);
-                        }
-                    }
-                    None => {
-                        error!("Transaction failed due to missing amount {:?}", record);
-                    }
+                    Some(amount) => client.withdraw(record.tx, amount),
+                    None => Err(anyhow::anyhow!("Transaction failed due to missing amount")),
                 },
-                crate::records::TransactionType::Dispute => {
-                    if let Err(err) = client.dispute(record.tx) {
-                        error!("Transaction failed due to: {} | {:?}", err, record);
-                    }
-                }
-                crate::records::TransactionType::Resolve => {
-                    if let Err(err) = client.resolve(record.tx) {
-                        error!("Transaction failed due to: {} | {:?}", err, record);
-                    }
-                }
-                crate::records::TransactionType::ChargeBack => {
-                    if let Err(err) = client.chargeback(record.tx) {
-                        error!("Transaction failed due to: {} | {:?}", err, record);
-                    }
-                }
+                crate::records::TransactionType::Dispute => client.dispute(record.tx),
+                crate::records::TransactionType::Resolve => client.resolve(record.tx),
+                crate::records::TransactionType::ChargeBack => client.chargeback(record.tx),
             };
+
+            if let Err(err) = processing_result {
+                error!("Transaction failed. {} | {:?}", err, record);
+            }
         }
     }
 
