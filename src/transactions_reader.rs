@@ -1,13 +1,10 @@
 /// Reads transactions from a CSV file
 /// Make it a separate file in case we want to add new methods
 /// such as reading from a non-CSV file and so on
-use std::{
-    io::{BufRead, BufReader, Read},
-    path::Path,
-};
+use std::{collections::HashMap, io::{BufRead, BufReader, Read}, path::Path};
 
 use anyhow::Context;
-use crossbeam_channel::Sender;
+use crossbeam_channel::{Receiver, Sender};
 use csv::{ByteRecord, ReaderBuilder, Trim};
 use threadpool::ThreadPool;
 
@@ -110,14 +107,21 @@ impl TransactionCSVReader for MTReader {
         let (parsed_tx, parsed_rx) =
             crossbeam_channel::unbounded::<(u32, Vec<TransactionRecord>)>();
 
+        let (reorder_tx, reorder_rx) =
+            crossbeam_channel::unbounded::<TransactionRecord>();
+
+        Self::start_reorder(parsed_rx, reorder_tx);
+
+
         // Read blocks of transactions
         let mut block_id = 0;
         while let Some(block) = self.read_block(&mut file_reader) {
             block_id += 1;
+            // the parsed blocks may arrive out of order, so we need to perform a reordering
             Self::dispatch_csv_block(&pool, block_id, block, parsed_tx.clone());
         }
 
-        todo!();
+        Ok(Box::new(reorder_rx.into_iter()))
     }
 }
 
@@ -134,11 +138,14 @@ impl MTReader {
         pool.execute(move || {
             let mut csv_reader = ReaderBuilder::new()
                 .trim(Trim::All)
-                .has_headers(false)
+                .has_headers(true)
                 .flexible(true)
                 .from_reader(block.as_slice());
 
             let mut raw_record = csv::ByteRecord::new();
+            // Looks like I have found a bug in CSV library
+            // It doesn't trim the first row if has_headers = false and the headers are supplied to deserialize
+            csv_reader.set_byte_headers(headers.clone());
 
             let mut transactions = Vec::new();
             while let Ok(true) = csv_reader.read_byte_record(&mut raw_record) {
@@ -152,6 +159,36 @@ impl MTReader {
             let _ = parsed_tx.send((block_id, transactions));
         });
     }
+
+    fn start_reorder(parsed_rx: Receiver<(u32, Vec<TransactionRecord>)>, reorder_tx: Sender<TransactionRecord>) {
+        // Ignore the join handle, since the lifetime of the thread is tied to the lifetime of the input and output channels
+        let _ = std::thread::spawn(move || {
+            let mut waiting_for = 1;
+            let mut queue = HashMap::new();
+            while let Ok(block) = parsed_rx.recv() {
+                if block.0 == waiting_for {
+                    for record in block.1 {
+                        if reorder_tx.send(record).is_err() {
+                            return;
+                        };
+                    }
+                    waiting_for += 1;
+                    // Clear backlog
+                    while let Some(transactions) = queue.remove(&waiting_for) {
+                        for record in transactions {
+                            if reorder_tx.send(record).is_err() {
+                                return;
+                            };
+                        }
+                        waiting_for += 1;
+                    }
+                } else if block.0 > waiting_for {
+                    queue.insert(block.0, block.1);
+                }
+            }
+        });
+    }
+
 
     // Reads a big block until new line
     fn read_block(&mut self, reader: &mut impl BufRead) -> Option<Vec<u8>> {
