@@ -1,9 +1,6 @@
 use std::path::Path;
 
-use crate::{
-    account_manager::AccountManager,
-    transactions_reader::{self, TransactionCSVReader},
-};
+use crate::{account_manager::{AccountManager, MTAccountManager}, transactions_reader::{self, TransactionCSVReader}};
 
 // The main application
 
@@ -39,12 +36,13 @@ impl App for PayToyMTApp {
             .read_csv(path)
             .unwrap();
 
-        let mut manager = AccountManager::new();
+        let mut manager = MTAccountManager::new(num_cpus::get());
         manager.execute_transactions(transactions);
 
-        if report_results {
-            manager.report();
-        }
+        // TODO: report properly
+        // if report_results {
+        //     manager.report();
+        // }
 
         Ok(())
     }

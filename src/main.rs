@@ -43,7 +43,7 @@ fn main() {
     //     std::process::exit(0);
     // };
 
-    create_large_test_file(LARGE_TEST_FILE_NAME, NUM_RECORDS, true);
+    create_large_test_file(LARGE_TEST_FILE_NAME, NUM_RECORDS, false);
 
     bench::read_raw_file(LARGE_TEST_FILE_NAME);
     bench::st_bulk_transaction_reader(LARGE_TEST_FILE_NAME);

@@ -57,4 +57,25 @@ Multiple clients:
 
 Thus an overall speedup of approx x3 or x4 depending on the dataset.
 
-# Can we do better?
+#### Can we do better?
+
+#### Multithreaded processing
+
+For an asset with multiple clients, we can assign each thread a subset of clients for processing:
+
+```
+[2021-07-22T23:00:06Z INFO  paytoy::bench] Single threaded application time: 1.0790833s 0.9267 millions/second
+[2021-07-22T23:00:06Z INFO  paytoy::bench] Multi-threaded application time: 189.9495ms 5.2645 millions/second
+```
+
+A whooping ~5.7x speedup
+
+
+For a dataset with a single client:
+
+```
+[2021-07-22T23:02:03Z INFO  paytoy::bench] Single threaded application time: 1.064819s 0.9391 millions/second
+[2021-07-22T23:02:03Z INFO  paytoy::bench] Multi-threaded application time: 328.4573ms 3.0445 millions/second
+```
+
+Note that much of a speedup, since only a single thread manages a single client. But still, around x3 speedup

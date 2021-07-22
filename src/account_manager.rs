@@ -2,9 +2,7 @@ use std::collections::HashMap;
 
 use log::*;
 
-use crate::{
-    client_account::ClientAccount, records::ClientId, transactions_reader::TransactionsStream,
-};
+use crate::{client_account::ClientAccount, records::{ClientId, TransactionRecord}, transactions_reader::TransactionsStream};
 
 /// Manages client accounts by processing transactions
 pub struct AccountManager {
@@ -74,6 +72,53 @@ impl AccountManager {
         }
     }
 }
+
+/// Account manager, but multithreaded
+/// Schedules work to other managers
+pub struct MTAccountManager {
+    num_threads: usize,
+}
+
+impl MTAccountManager {
+    pub fn new(num_threads: usize) -> Self {
+        Self {
+            num_threads
+        }
+    }
+
+    pub fn execute_transactions(&mut self, transactions: TransactionsStream) {
+
+        let mut handles = Vec::new();
+        let mut tx_queues = Vec::new();
+        for _ in 0..self.num_threads {
+            let (queue_tx, queue_rx) = crossbeam_channel::unbounded::<TransactionRecord>();
+            tx_queues.push(queue_tx);
+            let handle = std::thread::spawn(move || {
+                // use the single threaded manager here
+                let mut manager = AccountManager::new();
+                manager.execute_transactions(Box::new(queue_rx.into_iter()));
+            });
+
+            handles.push(handle);
+        }
+
+
+        // use a simple round robin strategy, but make sure the same client is always managed by the same thread
+        for record in transactions {
+            // println!("{}", record.tx);
+            if tx_queues[(record.client % self.num_threads as u16) as usize].send(record).is_err() {
+                break;
+            };
+        }
+        // tell the workers that there's no more work
+        drop(tx_queues);
+
+        for handle in handles {
+            let _ = handle.join();
+        }
+    }
+}
+
 
 #[cfg(test)]
 mod tests {
