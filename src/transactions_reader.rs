@@ -75,7 +75,7 @@ pub struct MTReader {
 impl MTReader {
     pub fn new() -> Self {
         Self {
-            num_threads: num_cpus::get_physical(),
+            num_threads: num_cpus::get(),
             block_size: 32 * 1024,
         }
     }

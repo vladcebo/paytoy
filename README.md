@@ -32,3 +32,29 @@ Conclusion:
 
 Because of the second hashmap and we have to keep track of clients as well, it's longer to process transactions for multiple clients.
 But, different clients can be parallelized independetely.
+
+#### Multithreaded transactions reader
+
+On ryzen 3600 (6 cores / 12 threads):
+```
+[2021-07-22T22:36:33Z INFO  paytoy::bench] MTReader read 1000000 records in 144.0002ms 6.9444 millions/second
+```
+
+We get a nice speedup of approx 6 times.
+
+Running the full application:
+
+Single client:
+
+```
+[2021-07-22T22:39:52Z INFO  paytoy::bench] Multi-threaded application time: 320.164ms 3.1234 millions/second
+```
+
+Multiple clients:
+```
+[2021-07-22T22:41:07Z INFO  paytoy::bench] Multi-threaded application time: 360.2897ms 2.7755 millions/second
+```
+
+Thus an overall speedup of approx x3 or x4 depending on the dataset.
+
+# Can we do better?

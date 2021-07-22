@@ -29,3 +29,23 @@ impl App for PayToySTApp {
         Ok(())
     }
 }
+
+
+pub struct PayToyMTApp {}
+
+impl App for PayToyMTApp {
+    fn run<P: AsRef<Path>>(path: P, report_results: bool) -> anyhow::Result<()> {
+        let transactions = transactions_reader::MTReader::new()
+            .read_csv(path)
+            .unwrap();
+
+        let mut manager = AccountManager::new();
+        manager.execute_transactions(transactions);
+
+        if report_results {
+            manager.report();
+        }
+
+        Ok(())
+    }
+}
