@@ -8,6 +8,7 @@ mod client_account;
 mod records;
 mod transactions_reader;
 mod bench;
+mod account_manager;
 
 static LARGE_TEST_FILE_NAME: &'static str = "tests/data/test_large.csv";
 static NUM_RECORDS: usize = 1000000;
