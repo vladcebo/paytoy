@@ -1,0 +1,28 @@
+use std::path::Path;
+
+use crate::{account_manager::AccountManager, transactions_reader::{self, TransactionCSVReader}};
+
+// The main application
+
+pub trait App {
+    fn run<P: AsRef<Path>>(path: P) -> anyhow::Result<()>;
+}
+
+
+pub struct PayToySTApp {
+}
+
+impl App for PayToySTApp {
+    fn run<P: AsRef<Path>>(path: P) -> anyhow::Result<()> {
+        let transactions = transactions_reader::STBulkReader::new()
+        .read_csv("tests/data/test_basic.csv")
+        .unwrap();
+
+        let mut manager = AccountManager::new();
+        manager.execute_transactions(transactions);
+
+        manager.report();
+
+        Ok(())
+    }
+}

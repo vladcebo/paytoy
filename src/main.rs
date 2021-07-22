@@ -2,16 +2,14 @@ use env_logger::Target;
 use log::*;
 use std::{self, env};
 
-use crate::{
-    account_manager::AccountManager, bench::create_large_test_file,
-    transactions_reader::TransactionCSVReader,
-};
+use crate::{account_manager::AccountManager, bench::create_large_test_file, paytoy::{App, PayToySTApp}, transactions_reader::TransactionCSVReader};
 
 mod account_manager;
 mod bench;
 mod client_account;
 mod records;
 mod transactions_reader;
+mod paytoy;
 
 static LARGE_TEST_FILE_NAME: &'static str = "tests/data/test_large.csv";
 static NUM_RECORDS: usize = 1000000;
@@ -27,28 +25,26 @@ fn main() {
 
     // Make sure there is one and only one argument to the program
     // TODO: maybe add some arguments with help or something
-    assert_eq!(args.len(), 2);
+    if args.len() != 2 {
+        error!("A file name argument must be provided as a single input argument");
+        std::process::exit(0);
+    }
 
     let input_file = &args[1];
-    info!("Reading CSV file: {}", input_file);
+    info!("Starting application on the file: {}", input_file);
+
+    if let Err(err) = PayToySTApp::run(input_file) {
+        error!("Failed to run the application: {:?}", err);
+        std::process::exit(0);
+    };
 
     // create_large_test_file(LARGE_TEST_FILE_NAME, NUM_RECORDS, true);
 
     // bench::read_raw_file(LARGE_TEST_FILE_NAME);
     // bench::st_bulk_transaction_reader(LARGE_TEST_FILE_NAME);
 
-    let transactions = transactions_reader::STBulkReader::new()
-        .read_csv("tests/data/test_basic.csv")
-        .unwrap();
-
-    let mut manager = AccountManager::new();
-    manager.execute_transactions(transactions);
-
-    manager.report();
-
     /* TODO:
-        1) Highly likely the csv/serde parsing is the bottleneck, need to benchmark
-        2) Get a stream instead of a vector from the csv? or better an iterator (since many channel implementations support into_iter())
+
         3) Can we parse csv in parallel?
         4) Other edge cases for the account:
             - can a withdrawal be disputed?
