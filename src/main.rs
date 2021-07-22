@@ -58,7 +58,7 @@ fn main() {
         std::process::exit(0);
     };
 
-    // run_benchmarks(false);
+    // run_benchmarks(true);
 
     /*
         TODO:
