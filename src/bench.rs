@@ -1,7 +1,4 @@
-use std::{
-    io::{BufWriter, Read, Write},
-    time::Duration,
-};
+use std::io::{BufWriter, Read, Write};
 
 use log::*;
 

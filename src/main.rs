@@ -2,7 +2,12 @@ use env_logger::Target;
 use log::*;
 use std::{self, env};
 
-use crate::{account_manager::{MTAccountManager, STAccountManager}, bench::create_large_test_file, paytoy::PayToyApp, transactions_reader::{MTReader, TransactionCSVReader}};
+use crate::{
+    account_manager::MTAccountManager,
+    bench::create_large_test_file,
+    paytoy::PayToyApp,
+    transactions_reader::MTReader,
+};
 
 mod account_manager;
 mod bench;
@@ -24,7 +29,6 @@ fn run_benchmarks(use_all_accounts: bool) {
 
     bench::st_bulk_application(LARGE_TEST_FILE_NAME, NUM_RECORDS);
     bench::mt_application(LARGE_TEST_FILE_NAME, NUM_RECORDS);
-
 }
 
 fn main() {
@@ -53,6 +57,8 @@ fn main() {
         error!("Failed to run the application: {:?}", err);
         std::process::exit(0);
     };
+
+    // run_benchmarks(false);
 
     /*
         TODO:

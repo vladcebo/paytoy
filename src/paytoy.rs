@@ -3,7 +3,6 @@ use std::path::Path;
 use crate::{account_manager::AccountManager, transactions_reader::TransactionCSVReader};
 
 // The main application
-
 pub struct PayToyApp {}
 
 impl PayToyApp {
@@ -13,7 +12,7 @@ impl PayToyApp {
         mut manager: impl AccountManager,
         report_results: bool,
     ) -> anyhow::Result<()> {
-        let transactions = reader.read_csv(path).unwrap();
+        let transactions = reader.read_csv(path)?;
 
         manager.execute_transactions(transactions);
 

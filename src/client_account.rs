@@ -1,4 +1,4 @@
-use std::{any, collections::HashMap};
+use hashbrown::HashMap;
 
 use anyhow::Context;
 use rust_decimal::Decimal;
@@ -36,6 +36,7 @@ impl TransactionHist {
 /// Represents a client account where transactions can be performed
 pub struct ClientAccount {
     /// Unique identifier for the client account
+    /// Not really needed since the manager knows everything about ids
     id: u16,
     /// Total available funds (for trading etc.)
     available: Decimal,
@@ -63,6 +64,7 @@ impl ClientAccount {
     }
 
     /// Get the account id
+    #[allow(dead_code)]
     pub fn id(&self) -> u16 {
         self.id
     }

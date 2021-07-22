@@ -3,7 +3,7 @@
 /// such as reading from a non-CSV file and so on
 use std::{
     collections::HashMap,
-    io::{BufRead, BufReader, Read},
+    io::{BufRead, BufReader},
     path::Path,
 };
 
@@ -89,6 +89,7 @@ impl MTReader {
         self
     }
 
+    #[allow(dead_code)]
     pub fn block_size(mut self, block_size: usize) -> Self {
         self.block_size = block_size;
         self

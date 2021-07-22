@@ -79,3 +79,9 @@ For a dataset with a single client:
 ```
 
 Note that much of a speedup, since only a single thread manages a single client. But still, around x3 speedup
+
+Moved to hashbrown HashMap, additional improvements:
+```
+[2021-07-22T23:20:06Z INFO  paytoy::bench] Single threaded application time: 984.3992ms 1.0158 millions/second
+[2021-07-22T23:20:06Z INFO  paytoy::bench] Multi-threaded application time: 269.338ms 3.7128 millions/second
+```
