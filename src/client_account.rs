@@ -89,35 +89,45 @@ impl ClientAccount {
 
     /// Deposits `amount` to the account with a specific transaction id
     /// Returns an `Error` in case the transaction already exists
-    pub fn deposit(&mut self, transaction_id: TransactionId, amount: Decimal) -> anyhow::Result<()> {
-        if self.transaction_history.get(&transaction_id).is_none() {
-            self.available += amount;
-            self.transaction_history
-                .insert(transaction_id, TransactionHist::new(amount));
-            Ok(())
-        } else {
+    pub fn deposit(
+        &mut self,
+        transaction_id: TransactionId,
+        amount: Decimal,
+    ) -> anyhow::Result<()> {
+        if self.transaction_history.contains_key(&transaction_id)  {
             return Err(anyhow::anyhow!("Transaction already exists",));
         }
+
+        self.available += amount;
+        self.transaction_history
+            .insert(transaction_id, TransactionHist::new(amount));
+
+        Ok(())
     }
 
     /// Withdraws `amount` from the account with a specific transaction id
     /// Returns an `Error` if no there are no sufficient funds or the transaction already exists
-    pub fn withdraw(&mut self, transaction_id: TransactionId, amount: Decimal) -> anyhow::Result<()> {
-        if self.transaction_history.get(&transaction_id).is_none() {
-            if amount < self.available {
-                self.available -= amount;
-                self.transaction_history
-                    .insert(transaction_id, TransactionHist::new(amount));
-                Ok(())
-            } else {
-                return Err(anyhow::anyhow!(
-                    "Insufficient funds. Available {}",
-                    self.available
-                ));
-            }
-        } else {
+    pub fn withdraw(
+        &mut self,
+        transaction_id: TransactionId,
+        amount: Decimal,
+    ) -> anyhow::Result<()> {
+        if self.transaction_history.contains_key(&transaction_id) {
             return Err(anyhow::anyhow!("Transaction already exists",));
         }
+
+        if amount > self.available {
+            return Err(anyhow::anyhow!(
+                "Insufficient funds. Available {}",
+                self.available
+            ));
+        }
+
+        self.available -= amount;
+        self.transaction_history
+            .insert(transaction_id, TransactionHist::new(amount));
+
+        Ok(())
     }
 
     /// Represents a client claim to reverse a transaction
@@ -130,14 +140,15 @@ impl ClientAccount {
             .get_mut(&transaction_id)
             .with_context(|| "Transaction does not exist")?;
 
-        if transaction.state == DisputeProgress::Idle {
-            self.available -= transaction.amount;
-            self.held += transaction.amount;
-            transaction.state = DisputeProgress::InProgress;
-            Ok(())
-        } else {
-            Err(anyhow::anyhow!("Dispute already in progress or done"))
+        if transaction.state != DisputeProgress::Idle {
+            return Err(anyhow::anyhow!("Dispute already in progress or done"));
         }
+
+        self.available -= transaction.amount;
+        self.held += transaction.amount;
+        transaction.state = DisputeProgress::InProgress;
+
+        Ok(())
     }
 
     /// Represents a resolved dispute
@@ -150,17 +161,17 @@ impl ClientAccount {
             .get_mut(&transaction_id)
             .with_context(|| "Transaction does not exist")?;
 
-        if transaction.state == DisputeProgress::InProgress {
-            self.available += transaction.amount;
-            self.held -= transaction.amount;
-            transaction.state = DisputeProgress::Done;
-
-            Ok(())
-        } else {
-            Err(anyhow::anyhow!(
+        if transaction.state != DisputeProgress::InProgress {
+            return Err(anyhow::anyhow!(
                 "Cannot resolve a transaction that is not disputed"
-            ))
+            ));
         }
+
+        self.available += transaction.amount;
+        self.held -= transaction.amount;
+        transaction.state = DisputeProgress::Done;
+
+        Ok(())
     }
 
     /// Represents a chargeback for a dispute
@@ -174,17 +185,17 @@ impl ClientAccount {
             .get_mut(&transaction_id)
             .with_context(|| "Transaction does not exist")?;
 
-        if transaction.state == DisputeProgress::InProgress {
-            self.held -= transaction.amount;
-            self.locked = true;
-            transaction.state = DisputeProgress::Done;
-
-            Ok(())
-        } else {
-            Err(anyhow::anyhow!(
+        if transaction.state != DisputeProgress::InProgress {
+            return Err(anyhow::anyhow!(
                 "Cannot resolve a transaction that is not disputed"
-            ))
+            ));
         }
+
+        self.held -= transaction.amount;
+        self.locked = true;
+        transaction.state = DisputeProgress::Done;
+
+        Ok(())
     }
 }
 

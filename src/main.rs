@@ -12,6 +12,7 @@ fn main() {
     let args: Vec<String> = env::args().collect();
 
     // Make sure there is one and only one argument to the program
+    // TODO: maybe add some arguments with help or something
     assert_eq!(args.len(), 2);
 
     let input_file = &args[1];
@@ -23,7 +24,8 @@ fn main() {
         3) Can we parse csv in parallel?
         4) Other edge cases for the account:
             - can a withdrawal be disputed?
-            - others?
+            - locked account?
+            - not enough held for dispute?
         5) Document stuff
     */
 }
