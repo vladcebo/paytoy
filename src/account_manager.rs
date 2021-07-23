@@ -134,7 +134,7 @@ impl AccountManager for MTAccountManager {
         drop(tx_queues);
 
         let mut full_report = Report {
-            accounts: HashMap::new(),
+            accounts: HashMap::with_capacity(1000),
         };
 
         for handle in handles {
@@ -159,6 +159,7 @@ impl MTAccountManager {
 
 #[cfg(test)]
 mod tests {
+    use rust_decimal::Decimal;
     use rust_decimal_macros::dec;
 
     use crate::transactions_reader::{self, TransactionCSVReader, TransactionsStream};
@@ -203,7 +204,7 @@ mod tests {
 
     #[test]
     fn test_basic_transactions_mt() {
-        let transactions = transactions_reader::STBulkReader::new()
+        let transactions = transactions_reader::MTReader::new()
             .read_csv("tests/data/test_basic.csv")
             .unwrap();
         let manager = MTAccountManager::new(2);
@@ -236,11 +237,36 @@ mod tests {
 
     #[test]
     fn test_basic_locked_mt() {
-        let transactions = transactions_reader::STBulkReader::new()
+        let transactions = transactions_reader::MTReader::new()
             .read_csv("tests/data/test_locked.csv")
             .unwrap();
         let manager = MTAccountManager::new(2);
 
         test_locked_client(manager, transactions);
+    }
+
+    #[test]
+    fn test_correctness() {
+
+        let transactions = transactions_reader::STBulkReader::new()
+        .read_csv("tests/data/test_correctnes.csv")
+        .unwrap();
+        let manager = STAccountManager::new();
+
+        let st_report = manager.execute_transactions(transactions);
+
+        let transactions = transactions_reader::MTReader::new()
+        .read_csv("tests/data/test_correctnes.csv")
+        .unwrap();
+        let manager = MTAccountManager::new(2);
+
+        let mt_report = manager.execute_transactions(transactions);
+
+        for client_id in 1..u16::max_value() {
+            let expected = Decimal::from(client_id);
+            assert_eq!(st_report.accounts.get(&client_id).unwrap().total(), expected);
+            assert_eq!(mt_report.accounts.get(&client_id).unwrap().total(), expected);
+        }
+
     }
 }
