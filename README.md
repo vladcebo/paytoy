@@ -21,6 +21,7 @@ In the application we have the following assumptions:
 * Using abstractions on streams the application can handle transactions streams from any sources
 * Efficiency is benchmarked on large auto-generated datasets
 * Now it can take more time to actually print the report to stdout than to process it (depending on the number of clients)
+* Asynchronous runtimes such as tokio is not used since the problem is heavily CPU bound. Reading from the disk is typically much faster than parsing and inserting things into the hashmap. But that may change in real life when there's a IO to a database, transactions come over the network etc.
 * **Note**: The application is optimized to run on a multicore machine and may suffer a performance penalty if there's not enough cores. It's possible to change the implementation slightly to dynamically chose between a single threaded or multithreaded implementations, but it's outside the scope for this problem.
 
 
@@ -87,6 +88,7 @@ Thus we get a speed-up of about **x5** on my machine (can be finely tuned depend
 ### Full application
 
 When running the benchmark on the application, the stdout reporting stage is omitted.
+The table below compares different transaction reader + account manager combination.
 
 application | ST + ST | ST + MT | MT + ST | MT + MT
 --- | --- | --- | --- | --- |
