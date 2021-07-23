@@ -45,7 +45,10 @@ impl AccountManager for STAccountManager {
             let client = self.get_or_create_account(record.client);
 
             if client.is_locked() {
-                warn!("Account {} is locked and cannot accept more transactions | {:?}", client, record);
+                warn!(
+                    "Account {} is locked and cannot accept more transactions | {:?}",
+                    client, record
+                );
                 continue;
             }
 
@@ -191,7 +194,6 @@ mod tests {
         assert_eq!(account2.is_locked(), false);
     }
 
-
     #[test]
     fn test_basic_transactions_st() {
         let transactions = transactions_reader::STBulkReader::new()
@@ -247,26 +249,30 @@ mod tests {
 
     #[test]
     fn test_correctness() {
-
         let transactions = transactions_reader::STBulkReader::new()
-        .read_csv("tests/data/test_correctnes.csv")
-        .unwrap();
+            .read_csv("tests/data/test_correctnes.csv")
+            .unwrap();
         let manager = STAccountManager::new();
 
         let st_report = manager.execute_transactions(transactions);
 
         let transactions = transactions_reader::MTReader::new()
-        .read_csv("tests/data/test_correctnes.csv")
-        .unwrap();
+            .read_csv("tests/data/test_correctnes.csv")
+            .unwrap();
         let manager = MTAccountManager::new(2);
 
         let mt_report = manager.execute_transactions(transactions);
 
         for client_id in 1..u16::max_value() {
             let expected = Decimal::from(client_id);
-            assert_eq!(st_report.accounts.get(&client_id).unwrap().total(), expected);
-            assert_eq!(mt_report.accounts.get(&client_id).unwrap().total(), expected);
+            assert_eq!(
+                st_report.accounts.get(&client_id).unwrap().total(),
+                expected
+            );
+            assert_eq!(
+                mt_report.accounts.get(&client_id).unwrap().total(),
+                expected
+            );
         }
-
     }
 }

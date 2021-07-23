@@ -51,8 +51,8 @@ fn main() {
 
     // For the final application, use both multithreader CSV reader
     // and multithreaded account manager for processing multiple clients in parallel
-    let reader = MTReader::new().with_threads(num_cpus::get()/2);
-    let manager = MTAccountManager::new(num_cpus::get()/2);
+    let reader = MTReader::new().with_threads(num_cpus::get() / 2);
+    let manager = MTAccountManager::new(num_cpus::get() / 2);
 
     if let Err(err) = PayToyApp::run(input_file, reader, manager, true) {
         error!("Failed to run the application: {:?}", err);

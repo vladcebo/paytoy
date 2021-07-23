@@ -149,6 +149,10 @@ impl ClientAccount {
             return Err(anyhow::anyhow!("Dispute already in progress or done"));
         }
 
+        if transaction.amount > self.available {
+            return Err(anyhow::anyhow!("Not enough funds to open a dispute"));
+        }
+
         self.available -= transaction.amount;
         self.held += transaction.amount;
         transaction.state = DisputeProgress::InProgress;
@@ -169,6 +173,12 @@ impl ClientAccount {
         if transaction.state != DisputeProgress::InProgress {
             return Err(anyhow::anyhow!(
                 "Cannot resolve a transaction that is not disputed"
+            ));
+        }
+
+        if transaction.amount > self.held {
+            return Err(anyhow::anyhow!(
+                "Not enough held funds to resolve a dispute"
             ));
         }
 
@@ -193,6 +203,12 @@ impl ClientAccount {
         if transaction.state != DisputeProgress::InProgress {
             return Err(anyhow::anyhow!(
                 "Cannot resolve a transaction that is not disputed"
+            ));
+        }
+
+        if transaction.amount > self.held {
+            return Err(anyhow::anyhow!(
+                "Not enough held funds to chargeback a dispute"
             ));
         }
 
@@ -315,5 +331,26 @@ mod tests {
         assert_eq!(client.total(), dec!(0.00));
         assert_eq!(client.held(), dec!(0.00));
         assert_eq!(client.is_locked(), true);
+    }
+
+    /* User scenario:
+        1) Make a deposit on 10$, available and total of 10$
+        2) Withdraw 5$
+        3) Make a dispute on 1
+        3) Cannot dispute it, since only 5$ available
+    */
+    #[test]
+    fn test_invalid_dispute() {
+        let mut client = ClientAccount::new(1);
+
+        assert!(client.deposit(1, dec!(10.00)).is_ok());
+        assert!(client.withdraw(2, dec!(5.00)).is_ok());
+
+        assert!(client.dispute(1).is_err());
+
+        assert_eq!(client.available(), dec!(5.00));
+        assert_eq!(client.total(), dec!(5.00));
+        assert_eq!(client.held(), dec!(0.00));
+        assert_eq!(client.is_locked(), false);
     }
 }

@@ -21,7 +21,7 @@ pub fn create_large_test_file(path: &str, num_records: usize, use_all_clients: b
     for trans_id in (1..num_records + 1).step_by(2) {
         let mut client_id = 1u16;
         if use_all_clients {
-            client_id = (trans_id/2 % 65536) as u16;
+            client_id = (trans_id / 2 % 65536) as u16;
         }
 
         let write_trans = &mut |tr_type: &str, trans_id, amount: &str| {
@@ -32,7 +32,11 @@ pub fn create_large_test_file(path: &str, num_records: usize, use_all_clients: b
         };
 
         write_trans("deposit", trans_id, "100000");
-        write_trans("withdrawal", trans_id + 1, (100000 - client_id as u32).to_string().as_ref());
+        write_trans(
+            "withdrawal",
+            trans_id + 1,
+            (100000 - client_id as u32).to_string().as_ref(),
+        );
     }
 }
 
@@ -81,7 +85,7 @@ pub fn mt_application(path: &str, num_transactions: usize) {
     PayToyApp::run(
         path,
         MTReader::new().with_threads(num_cpus::get() / 2),
-        MTAccountManager::new(num_cpus::get()/2),
+        MTAccountManager::new(num_cpus::get() / 2),
         false,
     )
     .unwrap();
