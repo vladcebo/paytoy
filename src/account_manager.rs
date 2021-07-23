@@ -44,6 +44,11 @@ impl AccountManager for STAccountManager {
             debug!("Processing transaction record: {:?}", record);
             let client = self.get_or_create_account(record.client);
 
+            if client.is_locked() {
+                warn!("Account {} is locked and cannot accept more transactions | {:?}", client, record);
+                continue;
+            }
+
             // Just match the proper transaction and log if there's an error
             let processing_result = match record.tr_type {
                 crate::records::TransactionType::Deposit => match record.amount {
@@ -204,5 +209,38 @@ mod tests {
         let manager = MTAccountManager::new(2);
 
         test_basic_transactions(manager, transactions);
+    }
+
+    // Test with a locked client
+    fn test_locked_client(manager: impl AccountManager, transactions: TransactionsStream) {
+        let report = manager.execute_transactions(transactions);
+
+        let account = report.accounts.get(&1).unwrap();
+
+        assert_eq!(account.id(), 1);
+        assert_eq!(account.available(), dec!(2.5));
+        assert_eq!(account.held(), dec!(0.0));
+        assert_eq!(account.total(), dec!(2.5));
+        assert_eq!(account.is_locked(), true);
+    }
+
+    #[test]
+    fn test_basic_locked_st() {
+        let transactions = transactions_reader::STBulkReader::new()
+            .read_csv("tests/data/test_locked.csv")
+            .unwrap();
+        let manager = STAccountManager::new();
+
+        test_locked_client(manager, transactions);
+    }
+
+    #[test]
+    fn test_basic_locked_mt() {
+        let transactions = transactions_reader::STBulkReader::new()
+            .read_csv("tests/data/test_locked.csv")
+            .unwrap();
+        let manager = MTAccountManager::new(2);
+
+        test_locked_client(manager, transactions);
     }
 }
