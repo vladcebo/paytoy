@@ -60,10 +60,4 @@ fn main() {
     };
 
     // run_benchmarks(true);
-
-    /*
-        TODO:
-        documentation and proper reporting / refactoring
-        + edge cases?
-    */
 }
