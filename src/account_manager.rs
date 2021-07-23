@@ -116,9 +116,6 @@ impl AccountManager for MTAccountManager {
                 let report = manager.execute_transactions(Box::new(queue_rx.into_iter()));
 
                 // return the accounts managed the single threaded managers
-                // Note: that we accounts after that, so if we call execute transactions again
-                // then we start from scratch
-                // it's easy to fix, but for the demo should be fine*
                 report
             });
 

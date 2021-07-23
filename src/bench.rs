@@ -33,7 +33,7 @@ pub fn create_large_test_file(path: &str, num_records: usize, use_all_clients: b
 
         write_trans("deposit", trans_id, "100000");
         write_trans(
-            "withdrawal",
+            "deposit",
             trans_id + 1,
             (100000 - client_id as u32).to_string().as_ref(),
         );

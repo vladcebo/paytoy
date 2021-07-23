@@ -9,7 +9,45 @@ In the application we have the following assumptions:
 * A record that cannot be parsed if the requirement above doens't hold is ignored
 * Records come from a single, chronologically ordered stream (it can be a from a file, network etc.). It can be extended to multiple concurrent streams, but then the consitency and relative chronological order of transactions in different streams shall be handled
 * Any transaction on a locked account is ignored
+* There is enough RAM to hold all the transactions. (unbounded crossbeam channel are used as well)
+* Withdrawals cannot be disputed (see below)
 
+### Testing and Efficiency
+
+* Tested using unit tests and custom csv files (including auto-generated ones)
+* System is safe and should never panic, errors are either logged or ignored depending on scenario
+* Errors are returned using anyhow crate
+* The dataset is not loaded upfront, but it's read and streamed throguh the data flow pipeline and processed on multiple threads (see below)
+* Using abstractions on streams the application can handle transactions streams from any sources
+* Efficiency is benchmarked on large auto-generated datasets
+* Now it can take more time to actually print the report to stdout than to process it (depending on the number of clients)
+* **Note**: The application is optimized to run on a multicore machine and may suffer a performance penalty if there's not enough cores. It's possible to change the implementation slightly to dynamically chose between a single threaded or multithreaded implementations, but it's outside the scope for this problem.
+
+
+### Transactions math:
+trans      | available | held | total
+---        | ---       | ---  | ---
+deposit    |    +      |  0   | +
+withdraw   |    -      |  0   | -
+dispute    |    -      |  +   | 0
+resolve    |    +      |  -   | 0
+chargeback |    0      |  -   | -
+
+0 => doesn't change, + => increase, => decrease
+
+### Why disputing withdrawals is not supported
+
+Example:
+1) deposit 10$ => 10$ 0$ 10$
+2) withdraw 5$ =>  5$ 0$  5$
+3) dispute withdrawal (by requirements, total remains the same)
+    * negative held => 10$ -5$ 5$
+        * can't happen, because we now have 10$ available for withdraw, though we already removed 5$. Or, we can forbid withdrawals if we have insufficient total funds, but then that is contradicting the requirements.
+    * positive held => 0$ 5$ 5$
+        * at the resolve it's fine, we go back to 5$ 0 5$, nothing reversed
+        * at chargeback: 0$ 0$ 0$, but the initial state was 10$ 0$ 10$, so we lost 5$ again.
+
+The only way to follow the requirements as they're described for each transaction type, is to ignore disputes for withdrawals.
 
 ### Main workflow
 
@@ -31,7 +69,7 @@ The processing pipelined dataflow is based on the results of benchmarks that are
 
 ### Final results for benchmarking
 
-The number of records is 1 million. Reported values are in millions of transactions per second and rounded to the first decimal point
+The number of records is 10 million (only deposits). Reported values are in millions of transactions per second and rounded to the first decimal point
 
 ST = single threaded
 
@@ -50,12 +88,12 @@ Thus we get a speed-up of about **x5** on my machine (can be finely tuned depend
 
 When running the benchmark on the application, the stdout reporting stage is omitted.
 
-application | Single threaded | Multithreaded
---- | --- | ---
-single client | 1.6 | 4.7
-all clients | 1.5 | 5.7
+application | ST + ST | ST + MT | MT + ST | MT + MT
+--- | --- | --- | --- | --- |
+single client | 1.4 | 1.4 | 3.8 | 3.7
+all clients | 1.4 | 1.8 | 3.5 | 6.6
 
-Thus if we have a single client, then we do not parallelize the transactions processing and we have a speedup of around **x3**. For multiple accounts the speedup is around **x4**.
+Thus if we have a single client, then we do not parallelize the transactions processing and we have a speedup of around **x2.6**. For multiple accounts the speedup is around **x4.7** vs a fully single threaded application.
 
 
 ### Basic Benchmarking:

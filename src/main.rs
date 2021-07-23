@@ -1,4 +1,3 @@
-use env_logger::Target;
 use log::*;
 use std::{self, env};
 
@@ -15,7 +14,7 @@ mod records;
 mod transactions_reader;
 
 static LARGE_TEST_FILE_NAME: &'static str = "tests/data/test_large.csv";
-static NUM_RECORDS: usize = 1000000;
+static NUM_RECORDS: usize = 10000000;
 
 // A simple test function to run qualitative benchmarks
 #[allow(dead_code)]
@@ -32,10 +31,10 @@ fn run_benchmarks(use_all_accounts: bool) {
 
 fn main() {
     // TODO: disable logging in the test environment
-    env_logger::builder()
-        .target(Target::Stdout)
-        .filter_level(LevelFilter::Info)
-        .init();
+    // env_logger::builder()
+    //     .target(env_logger::Target::Stdout)
+    //     .filter_level(LevelFilter::Debug)
+    //     .init();
 
     let args: Vec<String> = env::args().collect();
 
@@ -59,5 +58,6 @@ fn main() {
         std::process::exit(0);
     };
 
+    // For this benchmark, I get around 6-7 millions of records/second on my machine
     // run_benchmarks(true);
 }

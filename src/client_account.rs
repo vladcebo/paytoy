@@ -129,8 +129,9 @@ impl ClientAccount {
         }
 
         self.available -= amount;
-        self.transaction_history
-            .insert(transaction_id, TransactionHist::new(amount));
+        // No need to save history for withdrawals since they're not disputed
+        // self.transaction_history
+        //     .insert(transaction_id, TransactionHist::new(amount));
 
         Ok(())
     }
@@ -143,7 +144,7 @@ impl ClientAccount {
         let transaction = self
             .transaction_history
             .get_mut(&transaction_id)
-            .with_context(|| "Transaction does not exist")?;
+            .with_context(|| "A deposit transaction with such id does not exist")?;
 
         if transaction.state != DisputeProgress::Idle {
             return Err(anyhow::anyhow!("Dispute already in progress or done"));
@@ -223,7 +224,7 @@ impl ClientAccount {
 impl Display for ClientAccount {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_fmt(format_args!(
-            "{:6} {:14.4} {:14.4} {:14.4}     {}",
+            "{:6}, {:14.4}, {:14.4}, {:14.4},     {}",
             self.id(),
             self.available(),
             self.held(),
