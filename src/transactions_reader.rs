@@ -70,7 +70,9 @@ impl TransactionCSVReader for STBulkReader {
     }
 }
 
-// A multithreaded reader
+/// A multithreaded reader
+/// Reads blocks of raw bytes from a file (sequentially)
+/// And then forwards those blocks to a thread pool for deserialization
 pub struct MTReader {
     num_threads: usize,
     block_size: usize,
@@ -148,6 +150,7 @@ impl MTReader {
             let mut raw_record = csv::ByteRecord::new();
             // Looks like I have found a bug in CSV library
             // It doesn't trim the first row if has_headers = false and the headers are supplied to deserialize
+            // I'll open a bug on github
             csv_reader.set_byte_headers(headers.clone());
 
             let mut transactions = Vec::new();
@@ -163,6 +166,8 @@ impl MTReader {
         });
     }
 
+    /// Reorders transaction blocks from different thread
+    /// So in the end everything is chronologically in order
     fn start_reorder(
         parsed_rx: Receiver<(u32, Vec<TransactionRecord>)>,
         reorder_tx: Sender<TransactionRecord>,
@@ -195,7 +200,7 @@ impl MTReader {
         });
     }
 
-    // Reads a big block until new line
+    // Reads a big block until new line alignment
     fn read_block(&mut self, reader: &mut impl BufRead) -> Option<Vec<u8>> {
         let mut block = vec![0; self.block_size];
         // put additional for adjustments

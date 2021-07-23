@@ -8,10 +8,25 @@ use crate::{
     transactions_reader::TransactionsStream,
 };
 
-pub trait AccountManager {
-    fn execute_transactions(&mut self, transactions: TransactionsStream);
+/// The final report after executing all the transactions
+pub struct Report {
+    accounts: HashMap<ClientId, ClientAccount>,
+}
 
-    fn report(&self);
+impl Report {
+    pub fn report(&self) {
+        // formatting should be nice if the values are not extremly large
+        println!("client,     available,          held,         total,   locked");
+        // since row ordering doens't matter, just report from individual accounts
+        for (_, account) in &self.accounts {
+            println!("{}", account);
+        }
+    }
+}
+
+pub trait AccountManager {
+    /// Executes the transactions on the stream and return the report of all accounts
+    fn execute_transactions(self, transactions: TransactionsStream) -> Report;
 }
 
 /// Manages client accounts by processing transactions
@@ -20,19 +35,15 @@ pub struct STAccountManager {
     accounts: HashMap<ClientId, ClientAccount>,
 }
 
-fn report_headers() {
-    // since row ordering doens't matter, just loop the hashmap
-    // formatting should be nice if the values are not extremly large
-    println!("client,     available,          held,         total,   locked");
-}
-
+/// A single threaded account manager
+/// One single threaded (the thread where this function is called)
+/// will execute all the transactions
 impl AccountManager for STAccountManager {
-    fn execute_transactions(&mut self, transactions: TransactionsStream) {
+    fn execute_transactions(mut self, transactions: TransactionsStream) -> Report {
         for record in transactions {
             debug!("Processing transaction record: {:?}", record);
             let client = self.get_or_create_account(record.client);
 
-            // TODO: remove boilerplate error handling duplicates
             // Just match the proper transaction and log if there's an error
             let processing_result = match record.tr_type {
                 crate::records::TransactionType::Deposit => match record.amount {
@@ -52,13 +63,10 @@ impl AccountManager for STAccountManager {
                 error!("Transaction failed. {} | {:?}", err, record);
             }
         }
-    }
 
-    /// Reports the status of all accounts to the stdout
-    fn report(&self) {
-        report_headers();
-        self.report_accounts();
-
+        Report {
+            accounts: self.accounts,
+        }
     }
 }
 
@@ -79,23 +87,16 @@ impl STAccountManager {
             .get_mut(&client_id)
             .expect("Invariant: we always have an account since we insert one before that")
     }
-
-    fn report_accounts(&self) {
-        for (_, account) in &self.accounts {
-            println!("{}", account);
-        }
-    }
 }
 
 /// Account manager, but multithreaded
-/// Schedules work to other managers
+/// Assigns to each thread a subset of clients, so the work can be distributed more evenly
 pub struct MTAccountManager {
     num_threads: usize,
-    managers: Vec<STAccountManager>,
 }
 
 impl AccountManager for MTAccountManager {
-    fn execute_transactions(&mut self, transactions: TransactionsStream) {
+    fn execute_transactions(self, transactions: TransactionsStream) -> Report {
         let mut handles = Vec::new();
         let mut tx_queues = Vec::new();
         for _ in 0..self.num_threads {
@@ -103,11 +104,14 @@ impl AccountManager for MTAccountManager {
             tx_queues.push(queue_tx);
             let handle = std::thread::spawn(move || {
                 // use the single threaded manager here
-                let mut manager = STAccountManager::new();
-                manager.execute_transactions(Box::new(queue_rx.into_iter()));
+                let manager = STAccountManager::new();
+                let report = manager.execute_transactions(Box::new(queue_rx.into_iter()));
 
                 // return the accounts managed the single threaded managers
-                manager
+                // Note: that we accounts after that, so if we call execute transactions again
+                // then we start from scratch
+                // it's easy to fix, but for the demo should be fine*
+                report
             });
 
             handles.push(handle);
@@ -115,38 +119,36 @@ impl AccountManager for MTAccountManager {
 
         // use a simple round robin strategy, but make sure the same client is always managed by the same thread
         for record in transactions {
-            // println!("{}", record.tx);
-            if tx_queues[(record.client % self.num_threads as u16) as usize]
-                .send(record)
-                .is_err()
-            {
+            let worker_id = (record.client % self.num_threads as u16) as usize;
+            trace!("Dispatching record {:?} to worker {}", record, worker_id);
+            if tx_queues[worker_id].send(record).is_err() {
                 break;
             };
         }
         // tell the workers that there's no more work
         drop(tx_queues);
 
+        let mut full_report = Report {
+            accounts: HashMap::new(),
+        };
+
         for handle in handles {
-            if let Ok(manager) = handle.join() {
-                self.managers.push(manager);
+            if let Ok(report) = handle.join() {
+                for (client_id, account) in report.accounts {
+                    full_report.accounts.insert(client_id, account);
+                }
             } else {
                 error!("A manager panicked. Information lost");
             }
         }
-    }
 
-    fn report(&self) {
-        report_headers();
-        for manager in &self.managers {
-            manager.report_accounts();
-        }
+        full_report
     }
 }
 
 impl MTAccountManager {
     pub fn new(num_threads: usize) -> Self {
-        Self { num_threads,
-        managers: Vec::new(), }
+        Self { num_threads }
     }
 }
 
@@ -154,7 +156,7 @@ impl MTAccountManager {
 mod tests {
     use rust_decimal_macros::dec;
 
-    use crate::transactions_reader::{self, TransactionCSVReader};
+    use crate::transactions_reader::{self, TransactionCSVReader, TransactionsStream};
 
     use super::*;
 
@@ -163,16 +165,12 @@ mod tests {
         1, 1.5, 0.0, 1.5, false
         2, 2.0, 0.0, 2.0, false
     */
-    #[test]
-    fn test_basic_transactions() {
-        let transactions = transactions_reader::STBulkReader::new()
-            .read_csv("tests/data/test_basic.csv")
-            .unwrap();
-        let mut manager = STAccountManager::new();
-        manager.execute_transactions(transactions);
 
-        let account1 = manager.accounts.get(&1).unwrap();
-        let account2 = manager.accounts.get(&2).unwrap();
+    fn test_basic_transactions(manager: impl AccountManager, transactions: TransactionsStream) {
+        let report = manager.execute_transactions(transactions);
+
+        let account1 = report.accounts.get(&1).unwrap();
+        let account2 = report.accounts.get(&2).unwrap();
 
         assert_eq!(account1.id(), 1);
         assert_eq!(account1.available(), dec!(1.5));
@@ -185,5 +183,26 @@ mod tests {
         assert_eq!(account2.held(), dec!(0.0));
         assert_eq!(account2.total(), dec!(2.0));
         assert_eq!(account2.is_locked(), false);
+    }
+
+
+    #[test]
+    fn test_basic_transactions_st() {
+        let transactions = transactions_reader::STBulkReader::new()
+            .read_csv("tests/data/test_basic.csv")
+            .unwrap();
+        let manager = STAccountManager::new();
+
+        test_basic_transactions(manager, transactions);
+    }
+
+    #[test]
+    fn test_basic_transactions_mt() {
+        let transactions = transactions_reader::STBulkReader::new()
+            .read_csv("tests/data/test_basic.csv")
+            .unwrap();
+        let manager = MTAccountManager::new(2);
+
+        test_basic_transactions(manager, transactions);
     }
 }

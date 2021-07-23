@@ -5,7 +5,7 @@ use hashbrown::HashMap;
 use anyhow::Context;
 use rust_decimal::Decimal;
 
-use crate::records::TransactionId;
+use crate::records::{ClientId, TransactionId};
 
 /// Represents a state of a transaction dispute
 #[derive(PartialEq, Debug)]
@@ -39,7 +39,7 @@ impl TransactionHist {
 pub struct ClientAccount {
     /// Unique identifier for the client account
     /// Not really needed since the manager knows everything about ids
-    id: u16,
+    id: ClientId,
     /// Total available funds (for trading etc.)
     available: Decimal,
     /// Total held funds
@@ -54,7 +54,7 @@ pub struct ClientAccount {
 
 impl ClientAccount {
     /// Constructs a new client account with an id
-    pub fn new(id: u16) -> Self {
+    pub fn new(id: ClientId) -> Self {
         Self {
             id,
             available: Decimal::ZERO,
@@ -67,7 +67,7 @@ impl ClientAccount {
 
     /// Get the account id
     #[allow(dead_code)]
-    pub fn id(&self) -> u16 {
+    pub fn id(&self) -> ClientId {
         self.id
     }
 

@@ -17,6 +17,7 @@ mod transactions_reader;
 static LARGE_TEST_FILE_NAME: &'static str = "tests/data/test_large.csv";
 static NUM_RECORDS: usize = 1000000;
 
+// A simple test function to run qualitative benchmarks
 #[allow(dead_code)]
 fn run_benchmarks(use_all_accounts: bool) {
     create_large_test_file(LARGE_TEST_FILE_NAME, NUM_RECORDS, use_all_accounts);
@@ -48,6 +49,8 @@ fn main() {
     let input_file = &args[1];
     info!("Starting application on the file: {}", input_file);
 
+    // For the final application, use both multithreader CSV reader
+    // and multithreaded account manager for processing multiple clients in parallel
     let reader = MTReader::new().with_threads(num_cpus::get());
     let manager = MTAccountManager::new(num_cpus::get());
 

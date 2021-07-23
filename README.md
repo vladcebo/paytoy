@@ -1,6 +1,19 @@
 Simulates transaction handling on a list of clients.
 
 
+
+### General approach
+
+
+### Assumptions
+
+
+### Multithreaded architecture
+
+
+
+
+
 ### Basic Benchmarking:
 
 #### Compare how long it takes to read a raw file vs to read it and parse using csv and serde
