@@ -9,7 +9,6 @@ In the application we have the following assumptions:
 * A record that cannot be parsed if the requirement above doens't hold is ignored
 * Records come from a single, chronologically ordered stream (it can be a from a file, network etc.). It can be extended to multiple concurrent streams, but then the consitency and relative chronological order of transactions in different streams shall be handled
 * Any transaction on a locked account is ignored
-* There is enough RAM to hold all the transactions. (unbounded crossbeam channel are used as well)
 * Withdrawals cannot be disputed (see below)
 
 ### Testing and Efficiency
@@ -23,7 +22,7 @@ In the application we have the following assumptions:
 * Now it can take more time to actually print the report to stdout than to process it (depending on the number of clients)
 * Asynchronous runtimes such as tokio is not used since the problem is heavily CPU bound. Reading from the disk is typically much faster than parsing and inserting things into the hashmap. But that may change in real life when there's a IO to a database, transactions come over the network etc.
 * **Note**: The application is optimized to run on a multicore machine and may suffer a performance penalty if there's not enough cores. It's possible to change the implementation slightly to dynamically chose between a single threaded or multithreaded implementations, but it's outside the scope for this problem.
-
+* **UPDATE**: Optimized for memory usage as well by using fixed job size thread pool (custom), so the application processes records as fast as it can read them.
 
 ### Transactions math:
 trans      | available | held | total

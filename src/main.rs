@@ -1,7 +1,12 @@
 use log::*;
 use std::{self, env};
 
-use crate::{account_manager::{MTAccountManager, STAccountManager}, bench::create_large_test_file, paytoy::PayToyApp, transactions_reader::MTReader};
+use crate::{
+    account_manager::{MTAccountManager, STAccountManager},
+    bench::create_large_test_file,
+    paytoy::PayToyApp,
+    transactions_reader::MTReader,
+};
 
 mod account_manager;
 mod bench;
@@ -30,7 +35,7 @@ fn main() {
     // TODO: disable logging in the test environment
     // env_logger::builder()
     //     .target(env_logger::Target::Stdout)
-    //     .filter_level(LevelFilter::Debug)
+    //     .filter_level(LevelFilter::Info)
     //     .init();
 
     let args: Vec<String> = env::args().collect();
@@ -49,15 +54,15 @@ fn main() {
     // and multithreaded account manager for processing multiple clients in parallel
     let num_cores = num_cpus::get();
     if num_cores >= 4 {
-        let reader = MTReader::new().with_threads(num_cores/2);
-        let manager = MTAccountManager::new(num_cores/2);
+        let reader = MTReader::new().with_threads(num_cores / 2);
+        let manager = MTAccountManager::new(num_cores / 2);
 
         if let Err(err) = PayToyApp::run(input_file, reader, manager, true) {
             error!("Failed to run the application: {:?}", err);
             std::process::exit(0);
         };
     } else {
-        let reader = MTReader::new().with_threads(4);
+        let reader = MTReader::new().with_threads(2);
         let manager = STAccountManager::new();
 
         if let Err(err) = PayToyApp::run(input_file, reader, manager, true) {

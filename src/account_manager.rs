@@ -108,7 +108,7 @@ impl AccountManager for MTAccountManager {
         let mut handles = Vec::new();
         let mut tx_queues = Vec::new();
         for _ in 0..self.num_threads {
-            let (queue_tx, queue_rx) = crossbeam_channel::unbounded::<TransactionRecord>();
+            let (queue_tx, queue_rx) = crossbeam_channel::bounded::<TransactionRecord>(10000);
             tx_queues.push(queue_tx);
             let handle = std::thread::spawn(move || {
                 // use the single threaded manager here

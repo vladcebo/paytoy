@@ -14,8 +14,6 @@ enum DisputeProgress {
     Idle,
     /// Transaction dispute in progress
     InProgress,
-    /// Transaction is either resolved or is chargedback
-    Done,
 }
 
 /// A historical transaction stored in a database
@@ -185,7 +183,7 @@ impl ClientAccount {
 
         self.available += transaction.amount;
         self.held -= transaction.amount;
-        transaction.state = DisputeProgress::Done;
+        let _ = self.transaction_history.remove(&transaction_id);
 
         Ok(())
     }
@@ -215,7 +213,7 @@ impl ClientAccount {
 
         self.held -= transaction.amount;
         self.locked = true;
-        transaction.state = DisputeProgress::Done;
+        let _ = self.transaction_history.remove(&transaction_id);
 
         Ok(())
     }

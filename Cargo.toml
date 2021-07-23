@@ -15,7 +15,6 @@ anyhow = "1.0.42"
 rust_decimal = "1.14.3"
 rust_decimal_macros = "1.14.3"
 num_cpus = "1.13.0"
-threadpool = "1.8.1"
 crossbeam-channel = "0.5.1"
 hashbrown = "0.11.2"
 

@@ -10,7 +10,6 @@ use std::{
 use anyhow::Context;
 use crossbeam_channel::{Receiver, Sender};
 use csv::{ByteRecord, ReaderBuilder, Trim};
-use threadpool::ThreadPool;
 
 use crate::records::TransactionRecord;
 
@@ -109,22 +108,27 @@ impl TransactionCSVReader for MTReader {
             .read_until(b'\n', &mut headers)
             .with_context(|| "Failed to read the headers")?;
 
-        let pool = ThreadPool::new(self.num_threads);
-
         let (parsed_tx, parsed_rx) =
-            crossbeam_channel::unbounded::<(u32, Vec<TransactionRecord>)>();
+            crossbeam_channel::bounded::<(u32, Vec<TransactionRecord>)>(1000);
 
-        let (reorder_tx, reorder_rx) = crossbeam_channel::unbounded::<TransactionRecord>();
+        let (reorder_tx, reorder_rx) = crossbeam_channel::bounded::<TransactionRecord>(100000);
+        let (block_tx, block_rx) = crossbeam_channel::bounded::<(u32, Vec<u8>)>(1000);
 
         Self::start_reorder(parsed_rx, reorder_tx);
+        Self::start_dispatcher(self.num_threads, parsed_tx, block_rx);
 
         // Read blocks of transactions
-        let mut block_id = 0;
-        while let Some(block) = self.read_block(&mut file_reader) {
-            block_id += 1;
-            // the parsed blocks may arrive out of order, so we need to perform a reordering
-            Self::dispatch_csv_block(&pool, block_id, block, parsed_tx.clone());
-        }
+        let _ = std::thread::spawn(move || {
+            let mut block_id = 0;
+            while let Some(block) = self.read_block(&mut file_reader) {
+                block_id += 1;
+                // send them to the thread pool dispatcher
+                if block_tx.send((block_id, block)).is_err() {
+                    break;
+                }
+                // the parsed blocks may arrive out of order, so we need to perform a reordering
+            }
+        });
 
         Ok(Box::new(reorder_rx.into_iter()))
     }
@@ -132,38 +136,41 @@ impl TransactionCSVReader for MTReader {
 
 impl MTReader {
     /// Dispatch a CSV raw block for parsing
-    fn dispatch_csv_block(
-        pool: &ThreadPool,
-        block_id: u32,
-        block: Vec<u8>,
+    fn start_dispatcher(
+        num_threads: usize,
         parsed_tx: Sender<(u32, Vec<TransactionRecord>)>,
+        block_rx: Receiver<(u32, Vec<u8>)>,
     ) {
-        // For now consider that the headers if read then they're OK and equal to below
-        let headers = ByteRecord::from(vec!["type", "client", "tx", "amount"]);
-        pool.execute(move || {
-            let mut csv_reader = ReaderBuilder::new()
-                .trim(Trim::All)
-                .has_headers(true)
-                .flexible(true)
-                .from_reader(block.as_slice());
+        for _ in 0..num_threads {
+            let block_rx = block_rx.clone();
+            let parsed_tx = parsed_tx.clone();
+            // For now consider that the headers if read then they're OK and equal to below
+            let headers = ByteRecord::from(vec!["type", "client", "tx", "amount"]);
+            std::thread::spawn(move || {
+                while let Ok((block_id, block)) = block_rx.recv() {
+                    let mut csv_reader = ReaderBuilder::new()
+                        .trim(Trim::All)
+                        .has_headers(true)
+                        .flexible(true)
+                        .from_reader(block.as_slice());
 
-            let mut raw_record = csv::ByteRecord::new();
-            // Looks like I have found a bug in CSV library
-            // It doesn't trim the first row if has_headers = false and the headers are supplied to deserialize
-            // I'll open a bug on github
-            csv_reader.set_byte_headers(headers.clone());
-
-            let mut transactions = Vec::new();
-            while let Ok(true) = csv_reader.read_byte_record(&mut raw_record) {
-                let record = raw_record.deserialize::<TransactionRecord>(Some(&headers));
-                if let Ok(record) = record {
-                    transactions.push(record);
+                    let mut raw_record = csv::ByteRecord::new();
+                    // Looks like I have found a bug in CSV library
+                    // It doesn't trim the first row if has_headers = false and the headers are supplied to deserialize
+                    // I'll open a bug on github
+                    csv_reader.set_byte_headers(headers.clone());
+                    let mut transactions = Vec::new();
+                    while let Ok(true) = csv_reader.read_byte_record(&mut raw_record) {
+                        let record = raw_record.deserialize::<TransactionRecord>(Some(&headers));
+                        if let Ok(record) = record {
+                            transactions.push(record);
+                        }
+                    }
+                    // Will ignore the channel closed for now
+                    let _ = parsed_tx.send((block_id, transactions));
                 }
-            }
-
-            // Will ignore the channel closed for now
-            let _ = parsed_tx.send((block_id, transactions));
-        });
+            });
+        }
     }
 
     /// Reorders transaction blocks from different thread
